@@ -49,6 +49,15 @@ Whisper, Sherpa-ONNX, or a particular language model.
 
 ## Meet2Notes 0.6: the complete meeting, available to your AI
 
+Version **0.6.2** adds the source and setup documentation for the optional
+[Anna integration](integrations/anna/README.md). On Windows x86_64, Anna can
+search your existing library and display transcripts and AI notes while Meet2Notes
+and Anna Local Agent run on the same computer. Enable MCP access explicitly to
+use it. Retrieved text passes through Anna and may reach its AI provider in chat.
+The Anna app v0.1.3 is pending Marketplace review and uses independent versioning.
+Meet2Notes works normally without an Anna account, agent, or installation.
+
+
 Version 0.6.1 can record **Microphone + System audio** simultaneously, capturing
 your voice and the other participants in one synchronized local recording. Each
 input has its own device selector and live meter; the mixed audio feeds both live

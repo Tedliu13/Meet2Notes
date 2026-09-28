@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.6.2 - 2026-09-28
+
+- Added the optional Anna integration source, Windows Executa build tooling,
+  setup instructions, reviewer guide, and acceptance checks to the public repository.
+- Anna integration v0.1.3 provides read-only meeting search, timestamped transcripts,
+  and existing AI notes through the existing local MCP gateway; its bundled
+  Executa uses the independent version v0.1.2.
+- Added an English Anna UI with formatted notes, speaker-grouped transcripts,
+  readable dates, and paginated content. The Anna app is pending Marketplace review.
+- Added adapter tests for protocol registration, argument validation, read-only
+  boundaries, disconnected status, and pinned note pagination.
+- Kept Anna optional: no new desktop dependencies, startup services, database
+  migrations, or changes to recording, transcription, diarization, or note generation.
+
+
 ## 0.6.1 - 2026-09-10
 
 - Added simultaneous microphone and system-audio capture so video calls can

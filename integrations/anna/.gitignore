@@ -1,0 +1,5 @@
+.anna/
+.venv/
+node_modules/
+dist/
+bundle/anna-tool-ids.js

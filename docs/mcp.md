@@ -11,6 +11,11 @@ the other tools return a retryable, user-readable error.
 
 ## Client configuration
 
+For Anna, follow the separate [Anna setup and reviewer guide](../integrations/anna/REVIEW.md).
+The optional Windows x86_64 Executa uses the same read-only gateway and explicit
+MCP access setting. Install the integration through Anna; the stdio configuration
+below is for other desktop MCP clients. Anna is not needed for normal Meet2Notes use.
+
 Use the Python interpreter from the Meet2Notes virtual environment. There is no
 separate MCP executable to sign or distribute.
 
