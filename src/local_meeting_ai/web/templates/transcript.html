@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Transcription · Meet2Notes{% endblock %}
 {% block head %}
+<link rel="stylesheet" href="/static/css/library.css?v={{ asset_version }}">
 <link rel="stylesheet" href="/static/css/transcription.css?v={{ asset_version }}">
 <link rel="stylesheet" href="/static/css/post-meeting-assistant.css?v={{ asset_version }}">
 {% endblock %}
@@ -68,6 +69,8 @@
         </div>
       </div>
     </header>
+
+    <div class="transcription-tag-bar hidden" id="transcription-tags"><div class="meeting-tags" id="current-meeting-tags"></div><button type="button" class="text-button" id="edit-meeting-tags">Edit tags</button></div>
 
     <nav class="meeting-tabs hidden" id="meeting-tabs" role="tablist" aria-label="Meeting workspace">
       <button type="button" class="active" role="tab" aria-selected="true" aria-controls="meeting-tab-transcript" data-meeting-tab="transcript">
@@ -630,8 +633,10 @@
 </dialog>
 {% set post_assistant_context = 'meeting' %}
 {% include "_post_meeting_assistant.html" %}
+{% include "_tags.html" %}
 {% endblock %}
 {% block scripts %}
+<script src="/static/js/tags.js?v={{ asset_version }}" defer></script>
 <script src="/static/js/transcript.js?v={{ asset_version }}" defer></script>
 <script src="/static/js/post-meeting-assistant.js?v={{ asset_version }}" defer></script>
 {% endblock %}

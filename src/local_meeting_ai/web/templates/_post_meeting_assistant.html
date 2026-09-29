@@ -26,6 +26,11 @@
       <option value="">All meetings</option>
     </select>
   </div>
+  <div class="assistant-quick-actions">
+    <select id="assistant-action" aria-label="Quick action"><option value="">Quick actions</option></select>
+    <button type="button" id="assistant-action-use" disabled>Use</button>
+    <button type="button" id="assistant-action-manage">Customize</button>
+  </div>
   <div class="post-meeting-assistant-messages" id="post-meeting-assistant-messages" aria-live="polite">
     <div class="post-meeting-assistant-welcome" id="post-meeting-assistant-welcome">
       <strong>Ask about your meetings</strong>
@@ -55,3 +60,14 @@
   </form>
   <span class="post-meeting-assistant-resize" id="post-meeting-assistant-resize" role="separator" tabindex="0" aria-label="Resize Meeting Assistant"></span>
 </aside>
+<dialog class="modal quick-action-dialog" id="quick-action-dialog" aria-labelledby="quick-action-title">
+  <form class="modal-panel" id="quick-action-form">
+    <header class="modal-header"><h2 id="quick-action-title">Quick actions</h2></header>
+    <p data-i18n="actions.help">Save reusable instructions locally. Using an action fills the question; review it before sending.</p>
+    <label><span data-i18n="actions.saved">Saved actions</span><select id="quick-action-saved" aria-label="Saved actions"></select></label>
+    <label><span data-i18n="actions.name">Name</span><input id="quick-action-name" maxlength="80" required aria-label="Action name"></label>
+    <label><span data-i18n="actions.instructions">Instructions</span><textarea id="quick-action-prompt" rows="7" maxlength="4000" required aria-label="Action instructions"></textarea></label>
+    <p id="quick-action-error" role="alert"></p>
+    <div class="modal-actions"><button type="button" class="text-button danger" id="quick-action-delete">Delete</button><button type="button" class="button secondary" id="quick-action-close">Close</button><button type="submit" class="button primary">Save action</button></div>
+  </form>
+</dialog>

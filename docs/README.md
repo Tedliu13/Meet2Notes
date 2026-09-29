@@ -6,6 +6,9 @@ and future plans do not become mixed together.
 
 ## Current behavior and public contracts
 
+- [Meeting library](meeting-library.md): transcript search, tags, reusable
+  assistant actions, and their privacy and scope boundaries.
+
 - [Audio capture](audio-capture.md): microphone + system recording and setup on
   Windows, Linux, and macOS.
 - [Architecture](architecture.md): process boundaries, workers, storage, and the

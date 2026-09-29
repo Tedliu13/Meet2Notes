@@ -16,7 +16,7 @@
     <img alt="Platforms" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-supported-176BFF">
     <img alt="Local first" src="https://img.shields.io/badge/AI-local--first-16A085">
     <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-111827">
-    <img alt="Status alpha" src="https://img.shields.io/badge/status-alpha-F59E0B">
+    <img alt="Version 0.7.0" src="https://img.shields.io/badge/version-0.7.0-176BFF">
   </p>
 </div>
 
@@ -44,12 +44,35 @@ saved-voice matching, and analysis are independent stages with their own model
 selection, settings, lifecycle, and worker. A meeting is not tied to Faster
 Whisper, Sherpa-ONNX, or a particular language model.
 
-> Meet2Notes is in active alpha development. Back up important recordings and
-> obtain every consent required before recording a conversation.
+> Back up important recordings and obtain every consent required before recording a conversation.
 
-## Meet2Notes 0.6: the complete meeting, available to your AI
+## Meet2Notes 0.7: find the moment, organize the work
 
-Version **0.6.2** adds the source and setup documentation for the optional
+Version **0.7.0** makes your local meeting library easier to use:
+
+- Search titles, descriptions, or spoken words in completed active transcripts.
+  Results show speaker, timestamp, and a direct link to the matching segment.
+  Keyword search works without an embedding model or AI provider.
+- Create persistent meeting tags, apply several to a meeting, rename them across
+  the library, and combine a tag filter with text search. Results are paginated.
+- Use Meeting Assistant quick actions to draft follow-up emails, review decisions,
+  extract next steps, or prepare a status brief. Review the question before
+  sending; save, edit, and delete your own reusable actions locally.
+- Copy assistant answers for review and reuse. Changing the meeting scope clears
+  conversation history so previous answers cannot silently affect another meeting.
+
+See the [library and quick actions guide](docs/meeting-library.md).
+
+<p align="center">
+  <a href="https://youtu.be/Z2wRrs9Q9pU">
+    <img src="docs/assets/meet2notes-demo-fast.gif" alt="Meet2Notes six-second demo: live transcription, speakers, AI notes, exports, and a real assistant answer" width="960">
+  </a>
+</p>
+<p align="center">Live capture → Speakers → AI notes → Utilities → Meeting Assistant → Search &amp; tags</p>
+
+### Earlier releases
+
+Version **0.6.2** added the source and setup documentation for the optional
 [Anna integration](integrations/anna/README.md). On Windows x86_64, Anna can
 search your existing library and display transcripts and AI notes while Meet2Notes
 and Anna Local Agent run on the same computer. Enable MCP access explicitly to

@@ -673,8 +673,11 @@ def capabilities(container: ContainerDependency) -> dict[str, Any]:
                 if summaries.get("available") and summaries.get("installed")
                 else "requires_install"
             ),
-            "chat": "not_implemented",
-            "exports": "not_implemented",
+            "chat": "available",
+            "exports": "available",
+            "transcript_search": "available",
+            "meeting_tags": "available",
+            "quick_actions": "available",
         },
         "supported_import_extensions": [
             "wav",

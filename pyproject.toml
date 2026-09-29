@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "meet2notes"
-version = "0.6.2"
+version = "0.7.0"
 description = "Private local AI meeting transcription, speaker diarization, and summaries."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,7 +23,6 @@ keywords = [
     "fastapi",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",

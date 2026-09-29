@@ -1,0 +1,11 @@
+<dialog class="modal library-dialog" id="tags-dialog" aria-labelledby="tags-dialog-title">
+  <form class="modal-panel" id="tags-form">
+    <header class="modal-header"><h2 id="tags-dialog-title">Meeting tags</h2><button type="button" data-tags-close aria-label="Close">×</button></header>
+    <p id="tags-meeting-name"></p>
+    <p data-i18n="library.tags_help">Save applies your selection to this meeting. Creating, renaming or deleting tags takes effect immediately across the library.</p>
+    <div id="tags-options" class="tags-options"></div>
+    <div class="tag-create"><input id="new-tag-name" maxlength="40" aria-label="New tag name" placeholder="New tag name"><button type="button" id="create-tag" class="button secondary">Create tag</button></div>
+    <p id="tags-error" role="alert"></p>
+    <div class="modal-actions"><button type="button" data-tags-close class="button secondary">Cancel</button><button type="submit" class="button primary">Save tags</button></div>
+  </form>
+</dialog>

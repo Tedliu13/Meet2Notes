@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from local_meeting_ai import __version__
+from local_meeting_ai.api.library_routes import router as library_router
 from local_meeting_ai.api.live_assistant_routes import router as live_assistant_router
 from local_meeting_ai.api.routes import router as api_router
 from local_meeting_ai.api.webhook_routes import router as webhook_router
@@ -36,6 +37,7 @@ from local_meeting_ai.domain.protocols import (
     SummaryEngine,
     TranscriptionEngine,
 )
+from local_meeting_ai.infrastructure.database.library import LibraryRepository
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +203,7 @@ def create_app(
 
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     app.include_router(api_router)
+    app.include_router(library_router)
     app.include_router(live_assistant_router)
     app.include_router(webhook_router)
     _register_web_routes(app, templates, container)
@@ -241,18 +244,15 @@ def _register_web_routes(
 
     @app.get("/meetings", include_in_schema=False)
     async def meetings_library(request: Request) -> object:
-        saved_meetings = [
-            meeting
-            for meeting in container.meeting_service.list(limit=250)
-            if meeting.recording_count > 0 or meeting.audio_deleted_at is not None
-        ]
+        library = LibraryRepository(container.database).search()
         return templates.TemplateResponse(
             request=request,
             name="meetings.html",
             context={
                 "version": __version__,
                 "page": "meetings",
-                "meetings": saved_meetings,
+                "meetings": library["items"],
+                "meeting_count": library["total"],
             },
         )
 

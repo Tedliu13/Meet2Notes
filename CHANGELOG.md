@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 0.7.0 - 2026-09-29
+
+- Added a paginated meeting library with combined title/description and local
+  FTS5 transcript search, tag filters, timestamped excerpts, and direct links
+  that highlight the matching segment without starting audio automatically.
+- Added persistent meeting tags with assignment, removal, global rename, and
+  deletion; migration 013 preserves all existing recordings and transcripts.
+- Added reviewable Meeting Assistant quick actions, locally saved custom prompts,
+  action editing/deletion, answer copying, and history reset on scope changes.
+- Removed the general alpha label and reconciled the roadmap with shipped features.
+- Added a six-second README demo with corrected skin-tone colors, captured from
+  the real application and a demo recording.
+
+### Updating to 0.7.0
+
+- **Pinokio:** stop Meet2Notes, select **Update**, then **Start Meet2Notes**.
+  Update pulls the repository's current branch and refreshes its private runtime.
+- **Windows launcher:** rerun `install-update.bat` or use `update.bat` to detect
+  this stable GitHub Release and apply the backed-up update.
+- Migration 013 runs automatically on startup. Existing meetings, recordings,
+  settings and downloaded models are retained. Back up important data before
+  updating manually.
+
 ## 0.6.2 - 2026-09-28
 
 - Added the optional Anna integration source, Windows Executa build tooling,

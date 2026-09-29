@@ -20,6 +20,19 @@
 }
 
 .post-meeting-assistant.hidden { display: none; }
+.assistant-quick-actions { display:flex; flex-shrink:0; align-items:center; gap:6px; padding:8px 12px; border-bottom:1px solid #e3eaf4; }
+.assistant-quick-actions select { flex:1; min-width:0; padding:6px; border:1px solid #d0d8e4; border-radius:6px; background:#fff; color:#344054; font-size:12px; }
+.assistant-quick-actions button, .assistant-copy { padding:5px 7px; border:1px solid #d0d8e4; border-radius:6px; color:#175cd3; background:#f7faff; font-size:11px; cursor:pointer; }
+.assistant-copy { margin-top:8px; }
+.quick-action-dialog { width:min(600px, calc(100% - 28px)); }
+.quick-action-dialog .modal-panel { width:100%; min-width:0; max-height:85vh; overflow:auto; }
+.quick-action-dialog label { display:grid; gap:6px; margin:12px 0; }
+.quick-action-dialog :is(input, select, textarea) { padding:10px; border:1px solid #d0d8e4; border-radius:8px; background:#fff; color:#172033; }
+#quick-action-error { color:#b42318; }
+.post-meeting-assistant[data-collapsed="true"] .assistant-quick-actions { display:none; }
+[data-theme="dark"] .assistant-quick-actions { border-color:#2b3749; }
+[data-theme="dark"] :is(.assistant-quick-actions select, .quick-action-dialog input, .quick-action-dialog select, .quick-action-dialog textarea) { background:#182231; color:#e7edf7; border-color:#344054; }
+[data-theme="dark"] :is(.assistant-quick-actions button, .assistant-copy) { background:#192d49; color:#a9c7ff; border-color:#344d70; }
 
 .prompt-assistant > .post-meeting-assistant[data-layout="embedded"] {
   position: absolute;

@@ -1,8 +1,8 @@
 # Meet2Notes roadmap
 
-Meet2Notes is being built as a private, extensible meeting-intelligence
-workspace. The repository will become public when the application, extension
-API, upgrade path, and security defaults are mature enough for community use.
+Meet2Notes is a public, MIT-licensed, private meeting-intelligence workspace.
+Version 0.7.0 adds everyday library organization, transcript search, and reusable
+assistant actions to the existing recording and local AI foundations.
 
 This roadmap records product direction as well as implementation milestones.
 Items marked completed describe functionality already available in the current
@@ -163,7 +163,9 @@ location are mandatory before remote mode is enabled outside localhost.
 - [ ] Register typed export providers and destination presets.
 - [ ] Cache deterministic processor output by input digest, configuration, and
   plugin version.
-- [ ] Add Markdown, TXT, JSON, SRT, and VTT exporters.
+- [x] Export transcript and AI notes as Markdown, copyable text, browser-printed
+  PDF, and HTML-based Word (.doc); download meeting JSON and audio.
+- [ ] Add native DOCX, SRT, VTT, and dedicated TXT file exporters.
 
 ## Phase 3: processing nodes
 
@@ -189,11 +191,13 @@ location are mandatory before remote mode is enabled outside localhost.
   matrix, examples, and review checklist.
 - [ ] Replace the informational repository list with a signed, curated plugin
   index distributed independently from the core release.
-- [ ] Add signed desktop installers and safe application updates.
-- [ ] Open the repository publicly with security policy, governance,
-  contribution workflow, issue templates, and a stable Plugin API v1.
+- [x] Ship safe stable-Release updates with database backup and migration checks.
+- [ ] Add signed desktop installers.
+- [x] Publish the MIT repository, contributor guide, code of conduct, plugin
+  listing workflow, and Plugin API v1.
+- [ ] Add a dedicated security reporting policy and broader issue templates.
 
-## Release gates before public launch
+## Ongoing release quality gates
 
 - No known data-loss path in capture, import, migration, or model uninstall.
 - Backward-compatible migrations with tested rollback/recovery guidance.
@@ -209,7 +213,10 @@ location are mandatory before remote mode is enabled outside localhost.
 ## Longer-term product work
 
 - Native macOS Core Audio Tap support for desktop audio.
-- Local semantic search and meeting chat.
+- [x] Local semantic search and meeting chat, hybrid retrieval, and read-only MCP.
+- [x] Paginated keyword search with timestamped transcript results.
+- [x] Persistent meeting tags and reusable assistant quick actions.
+- [ ] Tag-scoped AI chat, calendar agenda, bookmarks, and structured task tracking.
 - Editable merge/split speaker tools and richer speaker identity management.
 - Multi-client processing-node scheduling and resource-aware routing.
 - Optional native streaming engines only if they do not compromise the stable

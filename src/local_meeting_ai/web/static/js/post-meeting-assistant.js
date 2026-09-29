@@ -149,7 +149,7 @@
     }
   }
 
-  function appendMessage(role, content, sources = []) {
+  function appendMessage(role, content, sources = [], copyable = true) {
     document.querySelector("#post-meeting-assistant-welcome")?.remove();
     const article = document.createElement("article");
     article.className = `post-meeting-assistant-message ${role}`;
@@ -169,12 +169,23 @@
       article.append(details);
     }
     messages.append(article);
+    if (role === "assistant" && content && copyable) {
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "assistant-copy";
+      copy.textContent = t("actions.copy");
+      copy.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(content); toast(t("actions.copied")); }
+        catch { toast(t("actions.copy_error"), "error"); }
+      });
+      article.append(copy);
+    }
     messages.scrollTop = messages.scrollHeight;
     return article;
   }
 
   function appendPending() {
-    const pending = appendMessage("assistant", "Searching local meeting context...");
+    const pending = appendMessage("assistant", "Searching local meeting context...", [], false);
     pending.classList.add("pending");
     return pending;
   }
@@ -287,6 +298,7 @@
     question.value = "";
     question.style.height = "auto";
     form.dataset.busy = "true";
+    meetingSelect.disabled = true;
     send.disabled = true;
     setRagState("busy", "Searching...");
     const pending = appendPending();
@@ -313,11 +325,12 @@
       setRagState("ready", "Local RAG");
     } catch (error) {
       pending.remove();
-      appendMessage("assistant", t("post_assistant.error", { message: error.message }));
+      appendMessage("assistant", t("post_assistant.error", { message: error.message }), [], false);
       setRagState("error", "RAG error");
       toast(error.message, "error");
     } finally {
       delete form.dataset.busy;
+      meetingSelect.disabled = false;
       send.disabled = !question.value.trim();
       question.focus();
     }
@@ -335,7 +348,11 @@
     }
   });
 
-  meetingSelect.addEventListener("change", loadContextDocuments);
+  meetingSelect.addEventListener("change", () => {
+    history.length = 0;
+    messages.replaceChildren();
+    loadContextDocuments();
+  });
   contextToggle.addEventListener("click", () => {
     const open = contextPanel.classList.contains("hidden");
     contextPanel.classList.toggle("hidden", !open);

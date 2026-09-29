@@ -41,6 +41,9 @@
   const newMeetingRequested = new URL(window.location.href).searchParams.get("new") === "1";
   const liveAssistantWidgetStorageKey = "meet2notes.liveAssistantWidget.v3";
 
+  const searchSegmentId = Number(new URL(location.href).searchParams.get("segment")) || null;
+  let pendingSearchSegment = searchSegmentId;
+
   let meetingId = page.dataset.meetingId || null;
   let draftTitle = page.dataset.defaultTitle || "New Transcription";
   let audioSources = [];
@@ -308,6 +311,7 @@
   }
 
   async function loadMeetingWorkspace() {
+    refreshMeetingTags();
     if (!meetingId) return;
     const [meetingData, recordingData, versionData, jobs, summaryData] = await Promise.all([
       api(`/api/meetings/${meetingId}`),
@@ -332,6 +336,22 @@
       || versions[0];
     if (preferred) await selectTranscription(preferred.id);
   }
+
+  async function refreshMeetingTags() {
+    const bar = document.querySelector("#transcription-tags");
+    bar.classList.toggle("hidden", !meetingId);
+    if (!meetingId) return;
+    try {
+      const tags = await api(`/api/meetings/${meetingId}/tags`);
+      document.querySelector("#current-meeting-tags").innerHTML = tags.map((tag) =>
+        `<a class="meeting-tag" href="/meetings?tag=${tag.id}">${escapeHTML(tag.name)}</a>`).join("");
+    } catch (error) { toast(error.message, "error"); }
+  }
+  document.querySelector("#edit-meeting-tags").addEventListener("click", () => {
+    if (meetingId) Meet2Notes.openTags(meetingId, currentMeeting?.title || draftTitle);
+  });
+  document.addEventListener("meet2notes:tagschanged", refreshMeetingTags);
+  refreshMeetingTags();
 
   function setTitle(value) {
     draftTitle = value || page.dataset.defaultTitle || "New Transcription";
@@ -391,7 +411,8 @@
     row.classList.remove("hidden");
     document.querySelector("#audio-filename").textContent =
       original.original_filename || "Original recording";
-    audio.src = `/api/recordings/${original.id}/media`;
+    const source = `/api/recordings/${original.id}/media`;
+    if (audio.getAttribute("src")?.split("#")[0] !== source) audio.src = source;
     applyAudioAvailability();
   }
 
@@ -599,6 +620,22 @@
     try {
       const detail = await api(`/api/transcriptions/${activeTranscriptionId}`);
       renderTranscript(detail);
+      if (pendingSearchSegment) {
+        const segment = detail.segments.find((item) => item.id === pendingSearchSegment);
+        pendingSearchSegment = null;
+        if (segment) {
+          setActiveMeetingTab("transcript");
+          const row = segmentContainer.querySelector(`[data-segment-id="${segment.id}"]`);
+          row?.classList.add("search-target");
+          requestAnimationFrame(() => segmentContainer.querySelector(`[data-segment-id="${segment.id}"]`)?.scrollIntoView({ block: "center" }));
+          const source = audio.getAttribute("src");
+          if (source) {
+            // A media fragment lets the browser apply the start time after loading,
+            // including when metadata is already cached. It never starts playback.
+            audio.src = `${source.split("#")[0]}#t=${segment.start_ms / 1000}`;
+          }
+        } else toast(t("library.jump_missing"), "error");
+      }
     } catch (error) {
       toast(error.message, "error");
     }
@@ -672,7 +709,7 @@
       const speakerColor = hasSpeaker ? Math.abs(speakerNumber - 1) % 6 : null;
       const provisional = !segment.is_final;
       return `
-        <article class="segment-row ${hasSpeaker ? `speaker-color-${speakerColor}` : "speaker-pending"} ${provisional ? "live-segment" : ""}" data-segment-id="${segment.id}">
+        <article class="segment-row ${segment.id === searchSegmentId ? "search-target" : ""} ${hasSpeaker ? `speaker-color-${speakerColor}` : "speaker-pending"} ${provisional ? "live-segment" : ""}" data-segment-id="${segment.id}">
           <button class="timestamp-button" data-seek-ms="${segment.start_ms}" title="Play from ${formatTimestamp(segment.start_ms)}" aria-label="Play from ${formatTimestamp(segment.start_ms)}" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>
           </button>
