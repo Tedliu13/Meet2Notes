@@ -6,7 +6,11 @@ param(
     [ValidateSet("all", "none")]
     [string]$Models = "all",
 
+    [ValidateSet("auto", "light", "bonsai-1bit", "bonsai-ternary", "none")]
+    [string]$LlmProfile = "auto",
+
     [ValidateSet(
+        "auto",
         "tiny",
         "base",
         "small",
@@ -15,7 +19,7 @@ param(
         "distil-large-v3",
         "turbo"
     )]
-    [string]$WhisperModel = "small",
+    [string]$WhisperModel = "auto",
 
     [string]$ModelsDirectory = "",
 
@@ -164,7 +168,7 @@ $LlamaBackend = if ($ResolvedBackend -eq "cuda" -and $CudaWheelCompatible) {
     "cpu"
 }
 if ($ResolvedBackend -eq "cuda" -and $LlamaBackend -eq "cpu") {
-    Write-Warning "CUDA PyTorch is installed for transcription models, but the prebuilt llama.cpp CUDA wheel requires Python 3.10-3.12. Local summaries will use CPU."
+    Write-Warning "The Python llama.cpp CUDA wheel requires Python 3.10-3.12; lightweight GGUF models will use CPU. Managed Bonsai uses its own CUDA runtime."
 }
 $LlamaIndex = if ($LlamaBackend -eq "cuda") {
     "https://abetlen.github.io/llama-cpp-python/whl/cu124"
@@ -199,7 +203,9 @@ if ($Models -eq "all") {
     $ModelArguments = @(
         "-m", "local_meeting_ai.model_setup",
         "--models", "all",
-        "--whisper-model", $WhisperModel
+        "--whisper-model", $WhisperModel,
+        "--llm-profile", $LlmProfile,
+        "--llm-backend", $AiBackend
     )
     if ($ModelsDirectory) {
         $ModelArguments += @("--models-dir", $ModelsDirectory)

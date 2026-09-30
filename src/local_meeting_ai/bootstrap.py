@@ -65,6 +65,7 @@ from local_meeting_ai.infrastructure.live_assistant_credentials import (
     LiveAssistantCredentialStore,
     MemoryLiveAssistantCredentialStore,
 )
+from local_meeting_ai.infrastructure.model_memory import ModelMemory
 from local_meeting_ai.infrastructure.pytorch_cuda import PytorchCudaRuntime
 from local_meeting_ai.infrastructure.storage import MeetingStorage
 from local_meeting_ai.infrastructure.webhook_secrets import (
@@ -247,7 +248,10 @@ def build_container(
     )
     # This is intentionally a second runtime instance. Its executor, request
     # queue and resident local model are independent from summaries and Prompt.
-    live_assistant_engine = LlamaCppSummaryEngine(paths.models)
+    model_memory = ModelMemory(
+        lambda: bool(preferences.get_all().get("automatic_model_memory", False)))
+    live_assistant_engine = model_memory.wrap(
+        "live-assistant", LlamaCppSummaryEngine(paths.models))
     live_assistant_service = LiveAssistantService(
         engine=live_assistant_engine,
         repository=live_assistant_repository,
@@ -289,6 +293,7 @@ def build_container(
         resolved_engine = transcription_engine
     else:
         resolved_engine = TranscriptionEngineRouter(provider_registry)
+    resolved_engine = model_memory.wrap("transcription", resolved_engine)
     profiles = TranscriptionProfileCatalog(
         resolved_engine,
         preferences,
@@ -329,6 +334,7 @@ def build_container(
     else:
         resolved_diarization = DiarizationEngineRouter(provider_registry)
         profile_matcher = SherpaOnnxSpeakerProfileMatcher(paths.models)
+    resolved_diarization = model_memory.wrap("diarization", resolved_diarization)
     diarization_service = DiarizationService(
         engine=resolved_diarization,
         recordings=recordings,
@@ -343,6 +349,7 @@ def build_container(
         provider_registry,
         preferences.get_all().get("summary_engine", {}),
     )
+    resolved_summary = model_memory.wrap("summary", resolved_summary)
     summary_service = SummaryService(
         engine=resolved_summary,
         summaries=summaries,

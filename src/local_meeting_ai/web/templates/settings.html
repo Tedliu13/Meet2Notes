@@ -123,6 +123,14 @@
           </div>
         </div>
 
+        <div class="engine-options-card" id="automatic-audio-card">
+          <strong data-i18n="audio.auto_title">Audio profile for this computer</strong>
+          <p id="automatic-audio-description" aria-live="polite"></p>
+          <button type="button" class="button primary" id="automatic-audio-install" data-i18n="audio.auto_install">Install and use recommended profile</button>
+          <button type="button" class="button secondary" id="automatic-audio-custom" data-i18n="audio.custom">Use custom settings</button>
+          <label><input type="checkbox" id="automatic-model-memory"> <span data-i18n="audio.memory">Release idle models between processing stages</span></label>
+          <p id="automatic-audio-status" role="status" aria-live="polite"></p>
+        </div>
         <form id="engine-settings-form" class="engine-settings-form">
           <div class="engine-identity-card" hidden>
             <span class="engine-logo-large">
@@ -178,6 +186,15 @@
               <label class="engine-field" id="faster-whisper-device-option"><span>GPU use</span><select id="fw-device"><option value="auto">Auto · recommended</option><option value="cpu">CPU</option><option value="cuda">CUDA · NVIDIA GPU</option></select><small id="engine-device-note">Detecting available acceleration…</small></label>
               <label class="engine-toggle"><span><strong>Load transcription models at application start</strong><small>Preloads the selected Live and Final transcription models so they are ready when you need them.</small></span><span class="switch"><input id="fw-preload-on-start" type="checkbox"><i></i></span></label>
             </div>
+          </div>
+
+          <div class="engine-config-group" id="linux-cuda-notice" role="status" hidden>
+            <p id="linux-cuda-message"></p>
+            <pre id="linux-cuda-detail" style="white-space: pre-wrap; overflow-wrap: anywhere"></pre>
+            <p data-i18n="cuda.repair_help">Run this command in the Meet2Notes environment, then restart the app:</p>
+            <pre id="linux-cuda-command" style="white-space: pre-wrap; overflow-wrap: anywhere"></pre>
+            <button class="button" type="button" id="linux-cuda-repair" data-i18n="cuda.repair" hidden>Install missing CUDA libraries</button>
+            <small data-i18n="cuda.download_note">The repair downloads NVIDIA libraries into this Python environment. It may take several minutes.</small>
           </div>
 
           <details class="advanced-settings" id="advanced-transcription-settings" open>
@@ -495,6 +512,16 @@
                 <label class="engine-toggle"><span><strong>Load in memory at startup</strong><small>Starts ready for the first summary. Enabled by default.</small></span><span class="switch"><input id="ai-custom-preload-on-start" type="checkbox"><i></i></span></label>
               </div>
             </div>
+            <div id="ai-ollama-basic" hidden>
+              <div class="engine-field-grid">
+                <label class="engine-field wide"><span data-i18n="ollama.address">Ollama address</span><input id="ai-ollama-url" type="url" placeholder="http://127.0.0.1:11434"></label>
+                <label class="engine-field wide"><span data-i18n="ollama.model">Ollama LLM</span><select id="ai-ollama-model" disabled></select></label>
+              </div>
+              <p id="ai-ollama-status" role="status" aria-live="polite"></p>
+              <p id="ai-ollama-model-info"></p>
+              <button class="button" type="button" id="ai-ollama-refresh" data-i18n="ollama.refresh">Refresh models</button>
+              <small data-i18n="ollama.help">Choose a model and save settings. Discovery does not start Ollama or download models.</small>
+            </div>
             <div class="engine-field-grid" id="ai-litellm-basic" hidden>
               <label class="engine-field wide"><span>LiteLLM model</span><input id="ai-litellm-model" type="text" placeholder="openai/gpt-4.1-mini or ollama/qwen3:8b"><small>The provider prefix tells LiteLLM how to connect.</small></label>
               <label class="engine-field wide"><span>API base URL <small>optional</small></span><input id="ai-litellm-base-url" type="url" placeholder="http://127.0.0.1:11434"><small>Leave empty when LiteLLM already knows the provider endpoint.</small></label>
@@ -535,6 +562,7 @@
               </label>
             </div>
           </div>
+          <label class="engine-toggle"><span><strong>Stream assistant responses</strong><small>Show answers as they are generated. Providers without streaming show an activity indicator until the answer is ready.</small></span><span class="switch"><input id="ai-streaming" type="checkbox"><i></i></span></label>
           <details class="advanced-settings">
             <summary><span>Advanced runtime options</span><small>Context, performance and hardware tuning</small></summary>
             <div class="engine-config-group">
@@ -558,7 +586,7 @@
               </label>
               <label class="engine-field compact">
                 <span>Context tokens</span>
-                <input id="ai-context-length" type="number" min="2048" max="131072" step="1024">
+                <input id="ai-context-length" type="number" min="2048" max="262144" step="1024">
               </label>
               <label class="engine-field compact">
                 <span>Output tokens</span>
@@ -599,6 +627,10 @@
                 <span><strong>Keep model in memory</strong><small>Faster repeated summaries at the cost of RAM/VRAM.</small></span>
                 <span class="switch"><input id="ai-keep-loaded" type="checkbox"><i></i></span>
               </label>
+              <label class="engine-toggle">
+                <span><strong data-i18n="settings.bonsai_auto_context">Bonsai automatic context</strong><small data-i18n="settings.bonsai_auto_context_help">Native Bonsai only. Grow from the configured window as needed, up to 262,144 tokens including the answer. Keep the model loaded to reuse its cache.</small></span>
+                <span class="switch"><input id="ai-bonsai-auto-context" type="checkbox"><i></i></span>
+              </label>
               <label class="engine-toggle"><span><strong>Memory map model</strong><small>Recommended for faster loading and lower private RAM use.</small></span><span class="switch"><input id="ai-use-mmap" type="checkbox"><i></i></span></label>
               <label class="engine-toggle"><span><strong>Lock model in RAM</strong><small>Prevents paging; use only when enough memory is available.</small></span><span class="switch"><input id="ai-use-mlock" type="checkbox"><i></i></span></label>
               <label class="engine-toggle"><span><strong>Offload K/Q/V</strong><small>Moves attention tensors to the selected GPU backend.</small></span><span class="switch"><input id="ai-offload-kqv" type="checkbox"><i></i></span></label>
@@ -632,6 +664,7 @@
           <div class="engine-toggle-grid">
             <label class="engine-toggle"><span><strong>Enable Live AI Assistant</strong><small>Allows the native assistant to start with live meetings.</small></span><span class="switch"><input id="live-assistant-enabled" type="checkbox"><i></i></span></label>
             <label class="engine-toggle"><span><strong>Start automatically</strong><small>Begin monitoring when live recording starts.</small></span><span class="switch"><input id="live-assistant-auto-start" type="checkbox"><i></i></span></label>
+            <label class="engine-toggle"><span><strong>Stream assistant responses</strong><small>Show answers as they are generated. Providers without streaming show an activity indicator until the answer is ready.</small></span><span class="switch"><input id="live-assistant-streaming" type="checkbox"><i></i></span></label>
             <label class="engine-toggle"><span><strong>Preload local model</strong><small>Reduce first-response latency at the cost of resident memory.</small></span><span class="switch"><input id="live-assistant-preload" type="checkbox"><i></i></span></label>
           </div>
           <div class="engine-config-group">
@@ -895,4 +928,4 @@
   </div>
 </dialog>
 {% endblock %}
-{% block scripts %}<script src="/static/js/settings.js?v={{ asset_version }}" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/js/audio-settings.js?v={{ asset_version }}" defer></script><script src="/static/js/ollama-settings.js?v={{ asset_version }}" defer></script><script src="/static/js/settings.js?v={{ asset_version }}" defer></script>{% endblock %}

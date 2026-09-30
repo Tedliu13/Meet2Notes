@@ -32,6 +32,7 @@ from local_meeting_ai.domain.protocols import (
     ProgressReporter,
     SegmentReporter,
 )
+from local_meeting_ai.infrastructure.linux_cuda import prepare_linux_cuda
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ class FasterWhisperEngine:
     def capability(self) -> dict[str, Any]:
         available = bool(self._runtime_capability["available"])
         cuda_devices = int(self._runtime_capability["cuda_devices"])
+        cuda_ready = bool(self._runtime_capability["cuda_available"])
         ctranslate_version = self._runtime_capability["ctranslate2_version"]
         compute_types = self._runtime_capability["supported_compute_types"]
         with self._state_lock:
@@ -80,12 +82,13 @@ class FasterWhisperEngine:
             "available": available,
             "install_command": 'python -m pip install -e ".[transcription]"',
             "ctranslate2_version": ctranslate_version,
-            "cuda_available": cuda_devices > 0,
+            "cuda_available": cuda_ready,
             "cuda_devices": cuda_devices,
+            "cuda_runtime": prepare_linux_cuda(),
             "supported_devices": [
                 {"id": "auto", "available": True},
                 {"id": "cpu", "available": True},
-                {"id": "cuda", "available": cuda_devices > 0},
+                {"id": "cuda", "available": cuda_ready},
             ],
             "unsupported_backends": {
                 "vulkan": "CTranslate2 does not provide a Vulkan backend.",
@@ -98,8 +101,8 @@ class FasterWhisperEngine:
             },
             "compute_types": list(COMPUTE_TYPES),
             "supported_compute_types": compute_types,
-            "recommended_device": "cuda" if cuda_devices else "cpu",
-            "recommended_compute_type": "float16" if cuda_devices else "int8",
+            "recommended_device": "cuda" if cuda_ready else "cpu",
+            "recommended_compute_type": "float16" if cuda_ready else "int8",
             "languages": list(WHISPER_LANGUAGE_CODES),
             "installed_models": self._installed_models(),
             "loaded_models": loaded_models,
@@ -225,6 +228,9 @@ class FasterWhisperEngine:
             if is_cancelled():
                 raise JobCancelledError("Transcription was cancelled")
             model_class = self._model_class()
+            runtime = self._runtime_capability["cuda_runtime"]
+            if request.device == "auto" and runtime.get("message"):
+                progress(0.01, runtime["message"])
             progress(0.02, f"Loading the {request.model} model")
             try:
                 model, slots, model_key = self._get_model(
@@ -237,9 +243,14 @@ class FasterWhisperEngine:
                     num_workers=request.num_workers,
                     allow_model_download=request.allow_model_download,
                 )
+            except CapabilityUnavailableError:
+                raise
             except Exception as error:
                 message = str(error)
-                if not request.allow_model_download:
+                if not request.allow_model_download and (
+                    type(error).__name__ == "LocalEntryNotFoundError"
+                    or isinstance(error, FileNotFoundError)
+                ):
                     raise CapabilityUnavailableError(
                         f"The {request.model} model is not installed. "
                         "Start again and explicitly allow the model download."
@@ -343,6 +354,16 @@ class FasterWhisperEngine:
         num_workers: int,
         allow_model_download: bool,
     ) -> tuple[Any, threading.BoundedSemaphore, tuple[Any, ...]]:
+        runtime = self._runtime_capability["cuda_runtime"]
+        if runtime["state"] != "not_applicable" and not self._runtime_capability["cuda_available"]:
+            if device == "cuda":
+                raise CapabilityUnavailableError(
+                    str(runtime.get("message") or "No usable NVIDIA GPU was detected on Linux.")
+                    + " " + str(runtime.get("detail", ""))
+                    + " Repair: " + str(runtime.get("repair_command", ""))
+                )
+            if device == "auto":
+                device, compute_type = "cpu", "int8"
         key = (
             model,
             device,
@@ -479,6 +500,7 @@ def _optional_float(value: Any) -> float | None:
 
 
 def _detect_runtime_capability() -> dict[str, Any]:
+    runtime = prepare_linux_cuda()
     available = importlib.util.find_spec("faster_whisper") is not None
     cuda_devices = 0
     ctranslate_version: str | None = None
@@ -499,9 +521,14 @@ def _detect_runtime_capability() -> dict[str, Any]:
                 )
         except (AttributeError, ImportError, RuntimeError, OSError):
             cuda_devices = 0
+    cuda_available = cuda_devices > 0 and runtime["state"] in {"ready", "not_applicable"}
+    if not cuda_available:
+        compute_types["cuda"] = []
     return {
         "available": available,
         "cuda_devices": cuda_devices,
+        "cuda_available": cuda_available,
+        "cuda_runtime": runtime,
         "ctranslate2_version": ctranslate_version,
         "supported_compute_types": compute_types,
     }

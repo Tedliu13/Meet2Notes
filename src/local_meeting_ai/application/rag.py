@@ -13,7 +13,12 @@ from typing import Any
 from local_meeting_ai.domain.entities import Job
 from local_meeting_ai.domain.enums import JobType
 from local_meeting_ai.domain.errors import NotFoundError, ValidationError
-from local_meeting_ai.domain.protocols import EmbeddingProvider, SummaryEngine
+from local_meeting_ai.domain.protocols import (
+    CancellationCheck,
+    EmbeddingProvider,
+    ProgressReporter,
+    SummaryEngine,
+)
 from local_meeting_ai.infrastructure.database.repositories import (
     JobRepository,
     MeetingRepository,
@@ -720,12 +725,40 @@ class PromptService:
         use_rag: bool,
         history: list[dict[str, str]],
         attachments: list[dict[str, Any]] | None = None,
+        progress: ProgressReporter | None = None,
+        is_cancelled: CancellationCheck = lambda: False,
     ) -> dict[str, Any]:
         rag_config = self.rag.config()
         config = configured_values(
             self.preferences, "summary_engine", SUMMARY_DEFAULTS
         )
+        # The AI notes default asks for a summary in the transcript language.
+        # Chat questions need their own default; preserve custom instructions.
+        if config.get("system_prompt") == SUMMARY_DEFAULTS["system_prompt"]:
+            config["system_prompt"] = "You are a helpful meeting question-answering assistant."
+        attachment_blocks, attached, attachment_tokens = self._attachment_context(
+            attachments or [], meeting_id=meeting_id
+        )
         context_length = int(config.get("context_length", 16384))
+        if (
+            config.get("provider", "local") == "local"
+            and config.get("profile_id") in {"bonsai-27b-1bit", "bonsai-27b-ternary"}
+            and config.get("bonsai_auto_context", True)
+        ):
+            # Reserve space for bounded history, chat framing and output as well
+            # as the complete documents. Grow by powers of two, never beyond
+            # the model's trained window. Do not truncate attached evidence.
+            history_estimate = min(
+                8192, sum(_estimated_tokens(turn["content"]) + 12 for turn in history[-20:])
+            )
+            required = (
+                attachment_tokens + history_estimate
+                + int(config.get("max_output_tokens", 1024))
+                + _estimated_tokens(str(config.get("system_prompt", "")) + question) + 1024
+            )
+            while context_length < 262144 and required > int(context_length * 0.9):
+                context_length = min(262144, context_length * 2)
+            config["context_length"] = context_length
         output_tokens = min(
             int(config.get("max_output_tokens", 1024)), context_length // 2
         )
@@ -740,9 +773,6 @@ class PromptService:
         history_budget = max(256, min(context_length // 6, input_budget // 4))
         conversation, history_tokens = self._bounded_history(history, history_budget)
         evidence_budget = max(256, input_budget - history_tokens)
-        attachment_blocks, attached, attachment_tokens = self._attachment_context(
-            attachments or [], meeting_id=meeting_id
-        )
         if attachment_tokens > evidence_budget - 128:
             raise ValidationError(
                 "The selected raw documents do not fit in the AI context window. "
@@ -754,7 +784,13 @@ class PromptService:
         attached_transcriptions = {
             item["id"] for item in attached if item["kind"] == "transcription"
         }
-        if use_rag and retrieval_budget >= 200:
+        # The selected meeting's full active transcript already supplies all its
+        # evidence. Avoid a redundant embedding search on every follow-up.
+        full_meeting_attached = meeting_id is not None and any(
+            item["kind"] == "transcription" and item["meeting_id"] == meeting_id
+            for item in attached
+        )
+        if use_rag and retrieval_budget >= 200 and not full_meeting_attached:
             retrieval = await self.rag.search(question, meeting_id=meeting_id)
             sources = [
                 source for source in retrieval["results"]
@@ -784,19 +820,47 @@ class PromptService:
             {
                 "prompt_mode": True,
                 "prompt_question": question,
-                "prompt_history": conversation,
+                "prompt_history": "\n".join(
+                    f"{turn['role'].upper()}: {turn['content']}" for turn in conversation
+                ),
+                "prompt_turns": conversation,
                 "keep_model_loaded": config.get("keep_model_loaded", True),
             }
         )
 
+        if (
+            len(attached) == 1 and attached[0]["kind"] == "transcription"
+            and attached[0]["meeting_id"] == meeting_id
+        ):
+            from local_meeting_ai.domain.meeting_text import transcript_prefix
+
+            config["bonsai_document_prefix"] = transcript_prefix(
+                attached[0]["id"], attachment_blocks[0].split("\n", 2)[2],
+            )
+
+        citations = [
+            {**item, "citation_id": f"A{index}"}
+            for index, item in enumerate(attached, 1)
+        ]
+        used_labels = set(re.findall(r"^\[(R\d+)\]", rag_context, re.MULTILINE))
+        sources = [
+            {**source, "citation_id": f"R{index}"}
+            for index, source in enumerate(sources, 1)
+            if f"R{index}" in used_labels
+        ]
+        citations.extend({**source, "kind": "excerpt"} for source in sources)
+        on_sources = getattr(progress, "on_sources", None)
+        if callable(on_sources):
+            on_sources(citations)
         result = await self.summary_engine.summarize(
             context,
             config,
-            _NoopProgress(),
-            lambda: False,
+            progress or _NoopProgress(),
+            is_cancelled,
         )
         return {
             "answer": result.content_markdown,
+            "citations": citations,
             "sources": sources,
             "retrieval": retrieval,
             "scope": "rag" if use_rag else ("meeting" if meeting_id else "model"),
@@ -848,9 +912,15 @@ class PromptService:
                         transcription.id
                     )
                 }
+                speaker_ids = sorted({
+                    segment.speaker_id for segment in segments if segment.speaker_id is not None
+                })
+                for speaker_index, speaker_id in enumerate(speaker_ids, 1):
+                    speakers.setdefault(speaker_id, f"Speaker {speaker_index}")
                 content = "\n".join(
-                    f"[{_clock(segment.start_ms)}] "
-                    f"{_speaker_label(speakers, segment.speaker_id)}: {segment.text.strip()}"
+                    f"[{segment.start_ms / 1000:.1f}s] "
+                    f"{_speaker_label(speakers, segment.speaker_id, 'Unidentified speaker')}: "
+                    f"{segment.text}"
                     for segment in segments
                 )
                 label = transcription.title
@@ -880,6 +950,7 @@ class PromptService:
                     "id": attachment_id,
                     "label": label,
                     "meeting_id": attachment_meeting_id,
+                    "meeting_title": meeting_title,
                     "estimated_tokens": _estimated_tokens(content),
                 }
             )
@@ -888,8 +959,8 @@ class PromptService:
     @staticmethod
     def _bounded_history(
         history: list[dict[str, str]], maximum_tokens: int
-    ) -> tuple[str, int]:
-        selected: list[str] = []
+    ) -> tuple[list[dict[str, str]], int]:
+        selected: list[dict[str, str]] = []
         used = 0
         for turn in reversed(history[-20:]):
             line = f"{turn['role'].upper()}: {turn['content']}"
@@ -898,9 +969,14 @@ class PromptService:
                 break
             if tokens > maximum_tokens:
                 continue
-            selected.append(line)
+            selected.append({"role": turn["role"], "content": turn["content"]})
             used += tokens
-        return "\n".join(reversed(selected)), used
+        selected.reverse()
+        # Do not start a truncated conversation with an orphan assistant reply.
+        while selected and selected[0]["role"] != "user":
+            removed = selected.pop(0)
+            used -= _estimated_tokens(f"{removed['role'].upper()}: {removed['content']}")
+        return selected, used
 
     @staticmethod
     def _rag_context(sources: list[dict[str, Any]], maximum_chars: int) -> str:
@@ -960,8 +1036,10 @@ def _clock(milliseconds: int) -> str:
     return f"{seconds // 60:02d}:{seconds % 60:02d}"
 
 
-def _speaker_label(speakers: dict[int, str], speaker_id: int | None) -> str:
-    return speakers.get(speaker_id, "Speaker") if speaker_id is not None else "Speaker"
+def _speaker_label(
+    speakers: dict[int, str], speaker_id: int | None, default: str = "Speaker",
+) -> str:
+    return speakers.get(speaker_id, default) if speaker_id is not None else default
 
 
 def _iso_date(value: Any) -> date | None:

@@ -4,6 +4,9 @@
   const {
     api,
     escapeHTML,
+    renderMarkdown,
+    streamAnswer,
+    answerActivity,
     formatBytes,
     subscribeActivity,
     subscribeJobs,
@@ -29,6 +32,7 @@
   const aiRebuildDialog = document.querySelector("#ai-rebuild-dialog");
   const aiUnsavedDialog = document.querySelector("#ai-unsaved-dialog");
   const exportDialog = document.querySelector("#export-dialog");
+  let liveQuestionBusy = false;
   const liveAssistantWidget = document.querySelector("#live-ai-assistant");
   const liveAssistantDragHandle = document.querySelector("#live-ai-assistant-drag-handle");
   const liveAssistantResizeHandle = document.querySelector("#live-ai-assistant-resize-handle");
@@ -43,6 +47,10 @@
 
   const searchSegmentId = Number(new URL(location.href).searchParams.get("segment")) || null;
   let pendingSearchSegment = searchSegmentId;
+  let transcriptRenderGeneration = 0;
+  let transcriptRequestGeneration = 0;
+  let speakerPanelPending = false;
+  const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0));
 
   let meetingId = page.dataset.meetingId || null;
   let draftTitle = page.dataset.defaultTitle || "New Transcription";
@@ -398,10 +406,20 @@
     titleInput.value = draftTitle;
   }
 
+  function playbackRecording() {
+    if (audioWasDeleted()) return null;
+    // Timestamps refer to the normalized PCM audio. Seeking in a long VBR MP3
+    // can land several seconds away even when currentTime reports the target.
+    return recordings.filter((item) => item.role === "normalized").at(-1)
+      || recordings.find((item) => item.role === "original")
+      || null;
+  }
+
   function configureAudio() {
+    const playback = playbackRecording();
     const original = recordings.find((item) => item.role === "original");
     const row = document.querySelector("#audio-row");
-    if (!original) {
+    if (!playback) {
       row.classList.add("hidden");
       stopAudioPlayback();
       audio.removeAttribute("src");
@@ -410,9 +428,12 @@
     }
     row.classList.remove("hidden");
     document.querySelector("#audio-filename").textContent =
-      original.original_filename || "Original recording";
-    const source = `/api/recordings/${original.id}/media`;
-    if (audio.getAttribute("src")?.split("#")[0] !== source) audio.src = source;
+      original?.original_filename || playback.original_filename || "Original recording";
+    const source = `/api/recordings/${playback.id}/media`;
+    if (audio.getAttribute("src")?.split("#")[0] !== source) {
+      stopAudioPlayback();
+      audio.src = source;
+    }
     applyAudioAvailability();
   }
 
@@ -422,7 +443,7 @@
 
   function applyAudioAvailability() {
     const deleted = audioWasDeleted();
-    const available = Boolean(recordings.find((item) => item.role === "original"));
+    const available = Boolean(playbackRecording());
     const unavailable = deleted || !available;
     const status = document.querySelector("#utility-audio-status");
     const deleteButton = document.querySelector("#delete-meeting-audio");
@@ -616,10 +637,16 @@
   }
 
   async function selectTranscription(transcriptionId) {
+    const requestGeneration = ++transcriptRequestGeneration;
+    ++transcriptRenderGeneration;
     activeTranscriptionId = Number(transcriptionId);
+    segmentContainer.setAttribute("aria-busy", "true");
+    document.querySelector("#editor-meta").textContent = t("transcript.loading");
     try {
       const detail = await api(`/api/transcriptions/${activeTranscriptionId}`);
-      renderTranscript(detail);
+      if (requestGeneration !== transcriptRequestGeneration) return;
+      await renderTranscript(detail);
+      if (requestGeneration !== transcriptRequestGeneration) return;
       if (pendingSearchSegment) {
         const segment = detail.segments.find((item) => item.id === pendingSearchSegment);
         pendingSearchSegment = null;
@@ -637,11 +664,14 @@
         } else toast(t("library.jump_missing"), "error");
       }
     } catch (error) {
+      if (requestGeneration !== transcriptRequestGeneration) return;
+      segmentContainer.removeAttribute("aria-busy");
       toast(error.message, "error");
     }
   }
 
-  function renderTranscript(detail) {
+  async function renderTranscript(detail) {
+    const generation = ++transcriptRenderGeneration;
     lastDetail = detail;
     const transcription = detail.transcription;
     const speakers = detail.speakers || [];
@@ -682,6 +712,7 @@
     document.querySelector("#editor-meta").textContent =
       `${transcription.model} · ${transcription.language || Meet2Notes.t("transcript.detecting_language")} · ${segments.length} ${Meet2Notes.t("transcript.shown")} / ${detail.segments.length} ${Meet2Notes.t("transcript.segments")}${captureSession ? ` · ${Meet2Notes.t("transcript.live")}` : ""}`;
     if (!detail.segments.length) {
+      segmentContainer.removeAttribute("aria-busy");
       if (["running", "queued"].includes(transcription.status)) {
         segmentContainer.innerHTML = `
           <div class="minimal-empty-state processing">
@@ -695,6 +726,7 @@
       return;
     }
     if (!segments.length) {
+      segmentContainer.removeAttribute("aria-busy");
       segmentContainer.innerHTML = `
         <div class="result-empty">
           <strong>No transcript segments for this speaker</strong>
@@ -702,7 +734,7 @@
         </div>`;
       return;
     }
-    segmentContainer.innerHTML = segments.map((segment) => {
+    const renderRow = (segment) => {
       const rawSpeaker = Number(segment.speaker_id);
       const hasSpeaker = segment.speaker_id !== null && Number.isFinite(rawSpeaker);
       const speakerNumber = hasSpeaker ? speakerNumbers.get(rawSpeaker) : null;
@@ -720,7 +752,22 @@
           <textarea class="segment-editor" rows="1" aria-label="Transcript segment ${segment.segment_index + 1}" ${provisional ? "readonly" : ""}>${escapeHTML(segment.text)}</textarea>
           <button class="segment-save ${provisional ? "hidden" : ""}" data-save-segment="${segment.id}">Save</button>
         </article>`;
-    }).join("");
+    };
+    const metadata = document.querySelector("#editor-meta");
+    const completeMetadata = metadata.textContent;
+    segmentContainer.setAttribute("aria-busy", "true");
+    segmentContainer.replaceChildren();
+    for (let offset = 0; offset < segments.length; offset += 40) {
+      if (generation !== transcriptRenderGeneration) return;
+      segmentContainer.insertAdjacentHTML("beforeend", segments.slice(offset, offset + 40).map(renderRow).join(""));
+      metadata.textContent = t("transcript.loading_progress", {
+        loaded: Math.min(offset + 40, segments.length), total: segments.length,
+      });
+      await yieldToBrowser();
+    }
+    if (generation !== transcriptRenderGeneration) return;
+    metadata.textContent = completeMetadata;
+    segmentContainer.removeAttribute("aria-busy");
     applySearch();
     applyAudioAvailability();
     if (captureSession) {
@@ -738,7 +785,11 @@
     const transcription = detail.transcription;
     const ready = transcription.status === "completed" && !captureSession;
     tabs.classList.toggle("hidden", !ready);
-    renderSpeakerPanel(detail);
+    speakerPanelPending = true;
+    if (document.querySelector('[data-meeting-tab="speakers"].active')) {
+      renderSpeakerPanel(detail);
+      speakerPanelPending = false;
+    }
     renderSummaryPanel();
     applyAudioAvailability();
   }
@@ -1051,122 +1102,6 @@
     });
   }
 
-  function renderInlineMarkdown(source) {
-    const tokens = [];
-    const token = (html) => {
-      const marker = `M2NMARKDOWNTOKEN${tokens.length}X`;
-      tokens.push(html);
-      return marker;
-    };
-    let value = String(source || "");
-    value = value.replace(/`([^`]+)`/g, (_match, code) =>
-      token(`<code>${escapeHTML(code)}</code>`));
-    value = value.replace(/\[([^\]]+)\]\(([^\s)]+)(?:\s+"[^"]*")?\)/g, (_match, label, href) => {
-      const safeHref = /^(https?:\/\/|mailto:|#)/i.test(href) ? href : "#";
-      const external = /^https?:\/\//i.test(safeHref)
-        ? ' target="_blank" rel="noopener noreferrer"'
-        : "";
-      return token(`<a href="${escapeHTML(safeHref)}"${external}>${escapeHTML(label)}</a>`);
-    });
-    value = escapeHTML(value)
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-      .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
-      .replace(/(^|[^_])_([^_\n]+)_/g, "$1<em>$2</em>")
-      .replace(/~~([^~]+)~~/g, "<del>$1</del>");
-    tokens.forEach((html, index) => {
-      value = value.replace(`M2NMARKDOWNTOKEN${index}X`, html);
-    });
-    return value;
-  }
-
-  function isMarkdownBlockStart(lines, index) {
-    const line = lines[index] || "";
-    const next = lines[index + 1] || "";
-    return /^\s*(```|~~~|#{1,6}\s|>|[-+*]\s+|\d+[.)]\s+|([-*_])(?:\s*\2){2,}\s*$)/.test(line)
-      || (line.includes("|") && /^\s*\|?\s*:?-{3,}/.test(next));
-  }
-
-  function renderMarkdown(source) {
-    const lines = String(source || "").replace(/\r\n?/g, "\n").split("\n");
-    const output = [];
-    let index = 0;
-    while (index < lines.length) {
-      const line = lines[index];
-      if (!line.trim()) {
-        index += 1;
-        continue;
-      }
-      const fence = line.match(/^\s*(```|~~~)(.*)$/);
-      if (fence) {
-        const body = [];
-        index += 1;
-        while (index < lines.length && !new RegExp(`^\\s*${fence[1]}`).test(lines[index])) {
-          body.push(lines[index]);
-          index += 1;
-        }
-        if (index < lines.length) index += 1;
-        output.push(`<pre><code>${escapeHTML(body.join("\n"))}</code></pre>`);
-        continue;
-      }
-      const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
-      if (heading) {
-        const level = heading[1].length;
-        output.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
-        index += 1;
-        continue;
-      }
-      if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)) {
-        output.push("<hr>");
-        index += 1;
-        continue;
-      }
-      if (line.includes("|") && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1] || "")) {
-        const splitRow = (row) => row.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim());
-        const headers = splitRow(line);
-        index += 2;
-        const rows = [];
-        while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
-          rows.push(splitRow(lines[index]));
-          index += 1;
-        }
-        output.push(`<table><thead><tr>${headers.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${headers.map((_header, cellIndex) => `<td>${renderInlineMarkdown(row[cellIndex] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
-        continue;
-      }
-      if (/^\s*>/.test(line)) {
-        const quoted = [];
-        while (index < lines.length && /^\s*>/.test(lines[index])) {
-          quoted.push(lines[index].replace(/^\s*>\s?/, ""));
-          index += 1;
-        }
-        output.push(`<blockquote>${renderMarkdown(quoted.join("\n"))}</blockquote>`);
-        continue;
-      }
-      const list = line.match(/^\s*([-+*]|\d+[.)])\s+(.+)/);
-      if (list) {
-        const ordered = /^\d/.test(list[1]);
-        const tag = ordered ? "ol" : "ul";
-        const items = [];
-        while (index < lines.length) {
-          const item = lines[index].match(/^\s*([-+*]|\d+[.)])\s+(.+)/);
-          if (!item || /^\d/.test(item[1]) !== ordered) break;
-          items.push(`<li>${renderInlineMarkdown(item[2])}</li>`);
-          index += 1;
-        }
-        output.push(`<${tag}>${items.join("")}</${tag}>`);
-        continue;
-      }
-      const paragraph = [line.trim()];
-      index += 1;
-      while (index < lines.length && lines[index].trim() && !isMarkdownBlockStart(lines, index)) {
-        paragraph.push(lines[index].trim());
-        index += 1;
-      }
-      output.push(`<p>${paragraph.map(renderInlineMarkdown).join("<br>")}</p>`);
-    }
-    return output.join("");
-  }
-
   function markdownToPlainText(source) {
     return String(source || "")
       .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
@@ -1344,7 +1279,11 @@
         body: JSON.stringify({ template_id: templateId }),
       });
       editingSummaryId = null;
-      meetingSummaries.unshift(result.summary);
+      // A fast model may finish and deliver its SSE update before this POST
+      // response is handled. Do not replace the completed copy with "queued".
+      if (!meetingSummaries.some((item) => item.id === result.summary.id)) {
+        meetingSummaries.unshift(result.summary);
+      }
       renderSummaryPanel();
       aiRebuildDialog.close();
       toast("AI notes rebuild started.", "success");
@@ -1467,8 +1406,11 @@
       : Math.max(0, Math.min(1, Number(job.progress || 0)));
     document.querySelector("#speaker-rebuild-options").hidden = true;
     document.querySelector("#speaker-rebuild-progress-view").hidden = false;
-    document.querySelector("#speaker-rebuild-progress").value = progress * 100;
-    document.querySelector("#speaker-rebuild-percent").textContent = `${Math.round(progress * 100)}%`;
+    const bar = document.querySelector("#speaker-rebuild-progress");
+    if (isIndeterminateJob(job)) bar.removeAttribute("value");
+    else bar.value = progress * 100;
+    document.querySelector("#speaker-rebuild-percent").textContent = isIndeterminateJob(job)
+      ? t("audio.working") : `${Math.round(progress * 100)}%`;
     document.querySelector("#speaker-rebuild-status").textContent = job.status === "failed"
       ? (job.error_text || "Speaker identification failed")
       : job.status === "cancelled"
@@ -1521,6 +1463,10 @@
       panel.classList.toggle("active", selected);
       panel.hidden = !selected;
     });
+    if (name === "speakers" && speakerPanelPending) {
+      speakerPanelPending = false;
+      setTimeout(() => renderSpeakerPanel(lastDetail), 0);
+    }
   }
 
   function configureWorkflowLabels() {
@@ -1671,6 +1617,10 @@
     row.querySelector(".workflow-step-state").textContent = label;
   }
 
+  function isIndeterminateJob(job) {
+    return job?.status === "running" && (job.message || "").includes("percentage unavailable");
+  }
+
   function renderJobStep(name, job, { expected = true, pendingLabel = "Waiting" } = {}) {
     if (!expected) {
       setWorkflowStep(name, "skipped", "Not selected");
@@ -1681,20 +1631,21 @@
       return 0;
     }
     const progressPercent = Math.max(0, Math.round(Number(job.progress || 0) * 100));
+    const progressLabel = isIndeterminateJob(job) ? t("audio.working") : `${progressPercent}%`;
     const snapshot = `${job.status}:${progressPercent}:${job.message || ""}:${job.error_text || ""}`;
     if (postprocessJobSnapshots.get(job.uuid) !== snapshot) {
       postprocessJobSnapshots.set(job.uuid, snapshot);
       const time = new Date().toLocaleTimeString(Meet2Notes.currentLanguage, { hour12: false });
       const detail = job.error_text || job.message || job.status;
       appendPostprocessLog(
-        `[${time}] ${job.status === "failed" ? "ERROR  " : "INFO   "} ${name} · ${progressPercent}% · ${detail}`,
+        `[${time}] ${job.status === "failed" ? "ERROR  " : "INFO   "} ${name} · ${progressLabel} · ${detail}`,
       );
     }
     if (["queued", "running", "paused"].includes(job.status)) {
       const progress = Number(job.progress || 0);
       const state = job.status === "queued"
         ? "Queued"
-        : `${Math.max(1, Math.round(progress * 100))}%`;
+        : isIndeterminateJob(job) ? t("audio.working") : `${Math.max(1, Math.round(progress * 100))}%`;
       setWorkflowStep(name, "active", state);
       return progress;
     }
@@ -1767,8 +1718,12 @@
     const overall = Math.round(
       transcriptionProgress * 35 + diarizationProgress * 30 + summaryProgress * 35,
     );
-    document.querySelector("#postprocess-progress").value = overall;
-    document.querySelector("#postprocess-percent").textContent = `${overall}%`;
+    const overallBar = document.querySelector("#postprocess-progress");
+    const unknownProgress = workflowJobs.some(isIndeterminateJob);
+    if (unknownProgress) overallBar.removeAttribute("value");
+    else overallBar.value = overall;
+    document.querySelector("#postprocess-percent").textContent =
+      unknownProgress ? t("audio.working") : `${overall}%`;
 
     const summaryDone = !summaryExpected || Boolean(
       summaryJob && ["completed", "failed", "cancelled"].includes(summaryJob.status),
@@ -2141,23 +2096,34 @@
     liveAssistantQuestionForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const question = liveAssistantQuestionInput?.value.trim();
-      if (!meetingId || !question || liveAssistantQuestionInput.disabled) return;
+      if (!meetingId || !question || liveQuestionBusy || liveAssistantQuestionInput.disabled) return;
+      liveQuestionBusy = true;
+      if (liveAssistantEmpty) liveAssistantEmpty.hidden = true;
       liveAssistantQuestionInput.disabled = true;
       if (liveAssistantSend) liveAssistantSend.disabled = true;
       liveAssistantWidget.dataset.runtimeStatus = "thinking";
       const status = document.querySelector("#live-ai-assistant-status");
       if (status) status.textContent = "Thinking...";
+      const pending = document.createElement("article");
+      pending.className = "live-agent-insight";
+      document.querySelector("#live-ai-assistant-insight-list").after(pending);
+      const activity = answerActivity(pending, liveAssistantWidgetBody);
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      window.addEventListener("pagehide", abort, { once: true });
       try {
-        await api(`/api/live-assistant/meetings/${meetingId}/questions`, {
-          method: "POST",
-          body: JSON.stringify({ question }),
-        });
+        await streamAnswer(`/api/live-assistant/meetings/${meetingId}/questions`,
+          { question }, activity.receive, controller.signal);
+        activity.finish();
+        pending.remove();
         liveAssistantQuestionInput.value = "";
-        await refreshLiveAssistant(true);
       } catch (error) {
+        if (!activity.finish(true)) pending.remove();
         toast(error.message, "error");
-        liveAssistantQuestionInput.disabled = false;
-        if (liveAssistantSend) liveAssistantSend.disabled = !liveAssistantQuestionInput.value.trim();
+      } finally {
+        window.removeEventListener("pagehide", abort);
+        liveQuestionBusy = false;
+        await refreshLiveAssistant(true);
         liveAssistantQuestionInput.focus();
       }
     });
@@ -2288,16 +2254,16 @@
     document.querySelector("#live-ai-assistant-status").textContent = `${status}${latency}`;
     const canAsk = Boolean(payload?.enabled && (runtime.active || captureSession));
     if (liveAssistantQuestionInput) {
-      liveAssistantQuestionInput.disabled = !canAsk;
+      liveAssistantQuestionInput.disabled = liveQuestionBusy || !canAsk;
       liveAssistantQuestionInput.placeholder = canAsk
         ? "Ask the Live Assistant..."
         : "Start a live meeting to ask a question";
     }
     if (liveAssistantSend) {
-      liveAssistantSend.disabled = !canAsk || !liveAssistantQuestionInput?.value.trim();
+      liveAssistantSend.disabled = liveQuestionBusy || !canAsk || !liveAssistantQuestionInput?.value.trim();
     }
     if (liveAssistantEmpty) {
-      liveAssistantEmpty.hidden = Boolean(insights.length);
+      liveAssistantEmpty.hidden = liveQuestionBusy || Boolean(insights.length);
       if (runtime.status === "waiting_question") {
         liveAssistantEmpty.textContent = "Waiting for a transcript question ending in a question mark (?).";
       } else if (runtime.status === "waiting_trigger") {
@@ -2312,7 +2278,7 @@
     }
     target.innerHTML = insights.map((item) => `
       <article class="live-agent-insight" data-status="${escapeHTML(item.status)}" data-kind="${escapeHTML(item.kind)}">
-        <div><p>${escapeHTML(item.text)}</p></div>
+        <div class="${item.kind === "user_question" ? "" : "assistant-markdown"}">${item.kind === "user_question" ? `<p>${escapeHTML(item.text)}</p>` : renderMarkdown(item.text)}</div>
       </article>`).join("");
     const latestInsight = insights.at(-1);
     if (latestInsight?.id && latestInsight.id !== lastAssistantInsightId) {
@@ -2409,8 +2375,12 @@
     card.classList.remove("hidden");
     document.querySelector("#transcription-progress-message").textContent =
       job.message || "Preparing transcription…";
-    document.querySelector("#transcription-progress-value").textContent = `${value}%`;
-    document.querySelector("#transcription-progress-bar").value = value;
+    const unknownProgress = isIndeterminateJob(job);
+    document.querySelector("#transcription-progress-value").textContent =
+      unknownProgress ? t("audio.working") : `${value}%`;
+    const bar = document.querySelector("#transcription-progress-bar");
+    if (unknownProgress) bar.removeAttribute("value");
+    else bar.value = value;
   }
 
   function formatTimestamp(milliseconds) {
@@ -3044,7 +3014,7 @@
     }
   });
 
-  subscribeJobs(async (jobs) => {
+  async function applyJobUpdates(jobs) {
     if (!meetingId) return;
     if (activeSpeakerRebuildJobId) {
       const rebuildJob = jobs.find((job) => job.uuid === activeSpeakerRebuildJobId);
@@ -3100,26 +3070,61 @@
     const terminal = jobs.filter((job) =>
       String(job.meeting_id) === String(meetingId) &&
       ["completed", "failed", "cancelled"].includes(job.status));
-    const newlyTerminal = terminal.find((job) => !terminalJobIds.has(job.uuid));
-    terminal.forEach((job) => terminalJobIds.add(job.uuid));
-    if (!newlyTerminal) return;
-    if (["transcribe", "diarize"].includes(newlyTerminal.job_type)) {
+    const newlyTerminal = terminal.filter((job) => !terminalJobIds.has(job.uuid));
+    if (!newlyTerminal.length) return;
+    // One event can include both a finished summary and its newer index job.
+    // Refresh each affected view before acknowledging the entire batch.
+    if (newlyTerminal.some((job) => ["transcribe", "diarize"].includes(job.job_type))) {
       versions = await api(`/api/meetings/${meetingId}/transcriptions`);
       const preferred = versions.find((item) => item.is_active) || versions[0];
       if (preferred) await selectTranscription(preferred.id);
     }
-    if (newlyTerminal.job_type === "summarize" &&
-        newlyTerminal.payload?.summary_scope !== "speaker") {
+    if (newlyTerminal.some((job) => job.job_type === "summarize" &&
+        job.payload?.summary_scope !== "speaker")) {
       meetingSummaries = await api(`/api/meetings/${meetingId}/summaries`);
       renderSummaryPanel();
     }
-    if (newlyTerminal.status === "completed" && newlyTerminal.job_type === "transcribe" &&
-        !newlyTerminal.payload?.postprocess) {
-      toast("Transcript completed locally.");
+    newlyTerminal.forEach((job) => {
+      terminalJobIds.add(job.uuid);
+      if (job.status === "completed" && job.job_type === "transcribe" &&
+          !job.payload?.postprocess) {
+        toast("Transcript completed locally.");
+      }
+      if (job.status === "failed") {
+        toast(job.error_text || `${job.job_type} failed.`, "error");
+      }
+    });
+  }
+
+  let pendingJobSnapshot = null;
+  let applyingJobSnapshot = false;
+  let jobRetryTimer = null;
+  async function drainJobUpdates() {
+    if (applyingJobSnapshot) return;
+    clearTimeout(jobRetryTimer);
+    applyingJobSnapshot = true;
+    try {
+      while (pendingJobSnapshot) {
+        const snapshot = pendingJobSnapshot;
+        pendingJobSnapshot = null;
+        try {
+          await applyJobUpdates(snapshot);
+        } catch (error) {
+          // SSE sends changed snapshots only: retry a failed refresh even when
+          // no further jobs finish. Newer snapshots take precedence.
+          pendingJobSnapshot ||= snapshot;
+          console.warn("Could not refresh meeting job results; retrying", error);
+          jobRetryTimer = setTimeout(drainJobUpdates, 2000);
+          break;
+        }
+      }
+    } finally {
+      applyingJobSnapshot = false;
     }
-    if (newlyTerminal.status === "failed") {
-      toast(newlyTerminal.error_text || `${newlyTerminal.job_type} failed.`, "error");
-    }
+  }
+  subscribeJobs((jobs) => {
+    pendingJobSnapshot = jobs;
+    void drainJobUpdates();
   });
 
   async function initializeWorkspace() {

@@ -4,7 +4,7 @@
   const widget = document.querySelector("#post-meeting-assistant");
   if (!widget) return;
 
-  const { api, escapeHTML, t, toast } = window.Meet2Notes;
+  const { api, escapeHTML, renderCitedAnswer, streamAnswer, answerActivity, t, toast } = window.Meet2Notes;
   const form = document.querySelector("#post-meeting-assistant-form");
   const question = document.querySelector("#post-meeting-assistant-question");
   const send = document.querySelector("#post-meeting-assistant-send");
@@ -24,6 +24,8 @@
   const embedded = widget.dataset.layout === "embedded" && Boolean(widget.closest(".prompt-assistant"));
   const history = [];
   const selectedAttachments = new Map();
+  let contextGeneration = 0;
+  let contextReady = Promise.resolve();
   const storageKey = "meet2notes.postMeetingAssistant.v2";
 
   function sourceTime(milliseconds) {
@@ -68,6 +70,7 @@
   }
 
   async function selectAttachment(input) {
+    const generation = contextGeneration;
     const key = input.dataset.attachmentKey;
     if (!input.checked) {
       selectedAttachments.delete(key);
@@ -79,6 +82,7 @@
       let tokens = Number(input.dataset.estimatedTokens || 0);
       if (input.dataset.attachmentKind === "transcription" && !tokens) {
         const detail = await api(`/api/transcriptions/${Number(input.dataset.attachmentId)}`);
+        if (generation !== contextGeneration || !input.isConnected || !input.checked) return;
         tokens = estimatedTokens((detail.segments || []).map((segment) => segment.text).join("\n"));
         input.dataset.estimatedTokens = String(tokens);
         input.closest("label").querySelector("small").textContent += ` · ${t("post_assistant.tokens", { count: tokens.toLocaleString() })}`;
@@ -91,6 +95,7 @@
       });
       renderContextChips();
     } catch (error) {
+      if (generation !== contextGeneration) return;
       input.checked = false;
       toast(error.message, "error");
     } finally {
@@ -99,6 +104,7 @@
   }
 
   async function loadContextDocuments() {
+    const generation = ++contextGeneration;
     selectedAttachments.clear();
     renderContextChips();
     const meetingId = Number(meetingSelect.value || 0);
@@ -115,6 +121,7 @@
         api(`/api/meetings/${meetingId}/transcriptions`),
         api(`/api/meetings/${meetingId}/summaries`),
       ]);
+      if (generation !== contextGeneration) return;
       const documents = [
         ...transcriptions.filter((item) => item.status === "completed").map((item) => ({
           kind: "transcription",
@@ -144,20 +151,33 @@
       contextDocuments.querySelectorAll("[data-attachment-key]").forEach((input) => {
         input.addEventListener("change", () => selectAttachment(input));
       });
+      // Attach one transcript, never all versions or generated notes. A removed
+      // chip stays removed until the user chooses a different scope.
+      const completed = transcriptions.filter((item) => item.status === "completed");
+      const active = completed.find((item) => item.is_active)
+        || completed.sort((left, right) => right.id - left.id)[0];
+      if (active) {
+        const input = contextDocuments.querySelector(
+          `[data-attachment-key="${attachmentKey("transcription", active.id)}"]`,
+        );
+        input.checked = true;
+        await selectAttachment(input);
+      }
     } catch (error) {
+      if (generation !== contextGeneration) return;
       contextDocuments.innerHTML = `<span>${escapeHTML(error.message)}</span>`;
     }
   }
 
-  function appendMessage(role, content, sources = [], copyable = true) {
+  function appendMessage(role, content, sources = [], copyable = true, citations = []) {
     document.querySelector("#post-meeting-assistant-welcome")?.remove();
     const article = document.createElement("article");
     article.className = `post-meeting-assistant-message ${role}`;
     const label = role === "assistant" ? "Meet2Notes AI" : "You";
     const body = role === "assistant"
-      ? escapeHTML(content).replaceAll(/\n/g, "<br>")
+      ? renderCitedAnswer(content, citations)
       : escapeHTML(content);
-    article.innerHTML = `<div class="post-meeting-assistant-message-label">${label}</div><div class="post-meeting-assistant-message-body">${body}</div>`;
+    article.innerHTML = `<div class="post-meeting-assistant-message-label">${label}</div><div class="post-meeting-assistant-message-body${role === "assistant" ? " assistant-markdown" : ""}">${body}</div>`;
     if (sources.length) {
       const details = document.createElement("details");
       details.className = "post-meeting-assistant-sources";
@@ -175,7 +195,7 @@
       copy.className = "assistant-copy";
       copy.textContent = t("actions.copy");
       copy.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(content); toast(t("actions.copied")); }
+        try { await navigator.clipboard.writeText(article.querySelector(".post-meeting-assistant-message-body").innerText); toast(t("actions.copied")); }
         catch { toast(t("actions.copy_error"), "error"); }
       });
       article.append(copy);
@@ -271,7 +291,7 @@
       if (defaultMeetingId && [...meetingSelect.options].some((option) => option.value === defaultMeetingId)) {
         meetingSelect.value = defaultMeetingId;
       }
-      loadContextDocuments();
+      contextReady = loadContextDocuments();
     } catch (error) {
       toast(error.message, "error");
     }
@@ -302,19 +322,28 @@
     send.disabled = true;
     setRagState("busy", "Searching...");
     const pending = appendPending();
+    const activity = answerActivity(pending.querySelector(".post-meeting-assistant-message-body"), messages, renderCitedAnswer);
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    window.addEventListener("pagehide", abort, { once: true });
     try {
-      const result = await api("/api/prompt", {
-        method: "POST",
-        body: JSON.stringify({
+      await contextReady;
+      const result = await streamAnswer("/api/prompt", {
           question: value,
           meeting_id: meetingSelect.value ? Number(meetingSelect.value) : null,
           use_rag: true,
           history: history.slice(-8),
           attachments: [...selectedAttachments.values()].map(({ kind, id }) => ({ kind, id })),
-        }),
-      });
+      }, (item) => {
+        activity.receive(item);
+        if (item.type === "delta") {
+          pending.classList.remove("pending");
+          setRagState("busy", t("assistant.generating"));
+        }
+      }, controller.signal);
+      activity.finish();
       pending.remove();
-      appendMessage("assistant", result.answer, result.sources || []);
+      appendMessage("assistant", result.answer, result.sources || [], true, result.citations || []);
       history.push({ role: "user", content: value }, { role: "assistant", content: result.answer });
       const usage = result.context_usage || {};
       const used = Number(usage.estimated_total_input_tokens || 0);
@@ -324,11 +353,12 @@
         : contextBudget.textContent;
       setRagState("ready", "Local RAG");
     } catch (error) {
-      pending.remove();
+      if (!activity.finish(true)) pending.remove();
       appendMessage("assistant", t("post_assistant.error", { message: error.message }), [], false);
       setRagState("error", "RAG error");
       toast(error.message, "error");
     } finally {
+      window.removeEventListener("pagehide", abort);
       delete form.dataset.busy;
       meetingSelect.disabled = false;
       send.disabled = !question.value.trim();
@@ -351,7 +381,7 @@
   meetingSelect.addEventListener("change", () => {
     history.length = 0;
     messages.replaceChildren();
-    loadContextDocuments();
+    contextReady = loadContextDocuments();
   });
   contextToggle.addEventListener("click", () => {
     const open = contextPanel.classList.contains("hidden");

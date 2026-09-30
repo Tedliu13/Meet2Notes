@@ -4,15 +4,24 @@ set -euo pipefail
 INSTALLER_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ENVIRONMENT_ROOT="${INSTALLER_ROOT}/.venv"
 MODELS="all"
-WHISPER_MODEL="small"
+WHISPER_MODEL="auto"
 MODELS_DIRECTORY=""
 DEV="false"
 START="false"
 AI_BACKEND="auto"
+LLM_PROFILE="auto"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-models) MODELS="none" ;;
+    --llm-profile)
+      shift
+      LLM_PROFILE="${1:?Missing LLM profile}"
+      case "${LLM_PROFILE}" in
+        auto|light|bonsai-1bit|bonsai-ternary|none) ;;
+        *) echo "Invalid --llm-profile" >&2; exit 2 ;;
+      esac
+      ;;
     --whisper-model)
       shift
       WHISPER_MODEL="${1:?Missing Whisper model name}"
@@ -76,7 +85,7 @@ step "Installing Meet2Notes and native audio/AI runtimes"
 
 PYTHON_MINOR="$("${PYTHON}" -c 'import sys; print(sys.version_info.minor)')"
 NVIDIA_AVAILABLE="false"
-if command -v nvidia-smi >/dev/null 2>&1; then
+if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
   NVIDIA_AVAILABLE="true"
 fi
 
@@ -107,6 +116,9 @@ step "Installing PyTorch ${RESOLVED_BACKEND} runtime inside .venv"
 
 "${PYTHON}" -m pip install -e ".[capture,transcription,diarization,nvidia-asr,pyannote-diarization]"
 "${PYTHON}" -m pip install "huggingface-hub>=0.27,<2"
+if [[ "${RESOLVED_BACKEND}" == "cuda" ]]; then
+  "${PYTHON}" -m local_meeting_ai.infrastructure.linux_cuda --install-if-needed
+fi
 
 LLAMA_BACKEND="cpu"
 if [[ "$(uname -s)" == "Darwin" ]]; then
@@ -114,7 +126,7 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
 elif [[ "${RESOLVED_BACKEND}" == "cuda" && "${PYTHON_MINOR}" -le 12 ]]; then
   LLAMA_BACKEND="cuda"
 elif [[ "${RESOLVED_BACKEND}" == "cuda" ]]; then
-  echo "CUDA PyTorch is installed for transcription models, but the prebuilt llama.cpp CUDA wheel requires Python 3.10-3.12. Local summaries will use CPU."
+  echo "The Python llama.cpp CUDA wheel requires Python 3.10-3.12; lightweight GGUF models will use CPU. Managed Bonsai uses its own CUDA runtime."
 fi
 LLAMA_INDEX="https://abetlen.github.io/llama-cpp-python/whl/${LLAMA_BACKEND}"
 echo "PyTorch backend: ${RESOLVED_BACKEND}"
@@ -157,6 +169,8 @@ if [[ "${MODELS}" == "all" ]]; then
     -m local_meeting_ai.model_setup
     --models all
     --whisper-model "${WHISPER_MODEL}"
+    --llm-profile "${LLM_PROFILE}"
+    --llm-backend "${AI_BACKEND}"
   )
   if [[ -n "${MODELS_DIRECTORY}" ]]; then
     MODEL_ARGUMENTS+=(--models-dir "${MODELS_DIRECTORY}")

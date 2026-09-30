@@ -2,6 +2,136 @@
 
 ## Unreleased
 
+## 0.8.0 - 2026-09-30
+
+Native Bonsai and reusable long context bring fast local follow-up questions to
+long meetings. This release also adds streamed Markdown answers, Ollama discovery,
+hardware-aware audio/LLM setup, Linux CUDA repair and long-recording fixes.
+
+Watch the [performance demo](https://www.youtube.com/watch?v=pDUrVM5XTZw): three
+short follow-up answers on an RTX 3070 (8 GB VRAM, 32 GB system RAM), with
+1.62–1.83 s to first text after the initial 75.68 s cold request. See
+[measurement details](https://github.com/estebanstifli/Meet2Notes/blob/v0.8.0/docs/performance-demo.md)
+for conditions and limitations.
+
+### Changes
+
+- Add the narrated Bonsai performance demo and measured cold-load/follow-up
+  timings to the README, with a consolidated overview of changes since 0.7.0
+  and documentation of the recording methodology and cache limits.
+
+- Play transcript and speaker timestamps against the normalized WAV to avoid
+  inaccurate browser seeking in long variable-bitrate MP3 recordings.
+
+- Add automatic audio installation profiles shared by Windows, Linux, Pinokio and
+  Settings: CPU INT8 bundles or NVIDIA Small/Turbo with Sherpa CPU diarization.
+  Preserve existing choices; install files before applying settings, without inference.
+- Add opt-in coordinated model residency, deferred unloads and a pre-output CPU
+  retry for Whisper CUDA failures. Keep summary KV state across assistant questions.
+- Show elapsed activity and indeterminate progress during long diarize CPU jobs;
+  support cancellation while waiting for the isolated worker's response.
+
+- Reuse native Bonsai's complete-transcript KV prefix from AI notes in subsequent
+  assistant questions. Show model-loading and context-processing progress before
+  the first answer token.
+- Render long transcripts in cooperative batches with loading progress and cancel
+  stale renders when switching versions. Defer the hidden speaker panel until its
+  tab is opened and skip layout work for off-screen transcript rows.
+
+- Apply Bonsai automatic context sizing inside the shared summary adapter, covering
+  queued AI notes and speaker notes as well as chat. Check the actual tokenizer
+  before generation, without changing saved context preferences.
+- Fix hierarchical summary boundary overflows by budgeting the same transcript
+  and evidence-group headers that are sent to the model.
+
+- Native Bonsai chat now keeps a stable complete-document prefix and explicitly
+  reuses the resident KV cache, with Q4 K/V compression and hybrid-state checkpoints.
+  Prompt timing logs report reused/new tokens without logging meeting content.
+- Add automatic native Bonsai context growth up to 262,144 total tokens. Preserve
+  complete attachments, retain larger loaded windows, and retry GPU allocation
+  failures with a host KV cache only when system RAM has sufficient headroom.
+  Manual context remains available; no transcript is silently truncated.
+
+- Automatically attach the active completed transcript when selecting a meeting
+  in Meeting Assistant or Prompt. The user can remove it; switching scopes clears
+  old attachments and ignores stale document requests.
+
+- Prevent native Bonsai factual chat from suppressing names already present in the
+  evidence by using neutral repetition sampling for prompt answers. Context and
+  output limits remain unchanged; this fixes premature normal-stop answers.
+- Show readable meeting source links for attached documents and retrieved excerpts
+  in Meeting Assistant and Prompt, including streamed answers. Unknown citation
+  labels are marked unverified instead of being linked to unrelated evidence.
+
+- Fix intermittent empty Bonsai answers on follow-up questions: explicitly disable
+  thinking in each native chat request instead of relying on a zero reasoning budget.
+  Keep the output allowance for the visible answer and report empty native responses
+  with safe diagnostics that do not log internal reasoning text.
+
+- Automatically recommend and install Bonsai 27B 1-bit for compatible NVIDIA
+  GPUs with 8+ GB VRAM, Ternary for 16+ GB, and LFM for modest/unsupported systems.
+  Windows, Linux/macOS, Pinokio and CLI share the policy; updates preserve explicit
+  model choices and custom storage locations. Explicit profile/skip options remain available.
+- Add pinned, SHA-256-verified Bonsai GGUFs and a private Prism runtime, including
+  private CUDA libraries on Windows/Linux and an optional Apple Silicon Metal runtime.
+  Native answers support streaming and managed process cleanup without requiring Ollama.
+- Make local LLM installation download-only, including Settings installation actions.
+  No LLM is loaded and no response is generated as an installation test.
+  Automatically selected profiles start with preloading disabled.
+
+- Send Meeting Assistant conversation history as actual user/assistant turns,
+  keep the current question last with its meeting evidence, and use a chat-specific
+  default instead of the AI notes summarization instruction. Preserve custom prompts
+  and bounded history without orphan assistant turns.
+
+- Fix AI notes staying queued when summary generation and search indexing finish
+  in the same job update. Process every completed job, retry failed UI refreshes,
+  and preserve completed notes when a late generation response still says queued.
+
+- Added configurable streaming for Meeting Assistant and direct Live Assistant
+  questions, with incremental Markdown, activity indicators, cancellation, and
+  buffered fallback for providers that explicitly reject streaming. Supports local
+  llama.cpp models, Ollama and remote providers through LiteLLM.
+
+- Render Markdown in Live Assistant and Meeting Assistant answers, including lists,
+  tables and code, with escaped HTML, safe links and the original text for copying.
+
+- Added an Ollama profile in AI Engine with service/executable discovery, a selector
+  of verified text-generation models, editable server address, cloud model labels,
+  and connection diagnostics. Discovery never loads or downloads a model.
+- Send the configured context window to Ollama, preserve explicit model selection,
+  and avoid forwarding shared API credentials to the dedicated Ollama profile.
+
+- Automatically discover and activate Linux CUDA 12 / cuDNN 9 libraries for
+  Faster Whisper, including libraries installed by pip or conda outside the
+  system linker path. Check native library initialization in an isolated process.
+- Use CPU/int8 for Auto when Linux CUDA cannot be initialized; show actionable
+  diagnostics and a private-environment repair button in Transcription settings.
+  Explicit CUDA requests fail early with the repair instructions.
+- Install missing Linux CUDA libraries during CUDA setup and Pinokio install/update,
+  without changing system drivers or requiring a system-wide CUDA toolkit.
+
+### Updating to 0.8.0
+
+- **Windows launcher:** stop Meet2Notes, then run `update.bat` or rerun
+  `install-update.bat`. The stable-Release updater creates a database backup,
+  validates dependencies and verifies the saved managed LLM's files.
+- **Pinokio:** stop Meet2Notes, select **Update**, then **Start Meet2Notes**.
+  Update pulls the current branch, refreshes the private runtime, checks Linux
+  CUDA libraries and verifies the saved managed LLM without loading it.
+- **macOS/Linux source installation:** stop the app, pull the updated source and
+  rerun `./install.sh` with the backend/storage options used for your installation.
+- Existing meetings, recordings, settings and downloaded models are retained.
+  Updating does not silently switch existing model selections to Bonsai or Turbo.
+  Choose a new LLM explicitly in **Settings → AI engine**, or use **Install and
+  use recommended profile** in **Settings → Transcription** for the audio bundle.
+- A compatible 8–15 GB NVIDIA GPU defaults to Bonsai 1-bit on a fresh install;
+  16+ GB defaults to Ternary. System RAM, driver and architecture checks also apply.
+  CPU/unsupported systems retain LFM. Installation downloads files without inference.
+- Restart after updating the backend or repairing CUDA libraries. Keep a backup
+  of important data before manual updates. See
+  [safe updates](https://github.com/estebanstifli/Meet2Notes/blob/v0.8.0/docs/updating.md).
+
 ## 0.7.0 - 2026-09-29
 
 - Added a paginated meeting library with combined title/description and local

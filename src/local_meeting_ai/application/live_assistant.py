@@ -13,7 +13,7 @@ from typing import Any
 
 from local_meeting_ai.domain.entities import LiveCaptureSession, SegmentDraft
 from local_meeting_ai.domain.errors import JobCancelledError, ValidationError
-from local_meeting_ai.domain.protocols import SummaryEngine
+from local_meeting_ai.domain.protocols import CancellationCheck, ProgressReporter, SummaryEngine
 from local_meeting_ai.infrastructure.database.live_assistant import (
     LiveAssistantRepository,
 )
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 LIVE_ASSISTANT_DEFAULTS: dict[str, Any] = {
+    "streaming": True,
     "enabled": False,
     "auto_start": True,
     "behavior_mode": "questions",
@@ -314,7 +315,11 @@ class LiveAssistantService:
                 self._queue.get_nowait()
             self._queue.put_nowait(batch)
 
-    async def ask(self, meeting_id: int, question: str) -> dict[str, Any]:
+    async def ask(
+        self, meeting_id: int, question: str, *,
+        progress: ProgressReporter | None = None,
+        is_cancelled: CancellationCheck = lambda: False,
+    ) -> dict[str, Any]:
         clean_question = question.strip()
         if not clean_question:
             raise ValidationError("Enter a question for the Live AI Assistant")
@@ -373,8 +378,8 @@ class LiveAssistantService:
                 result = await self.engine.summarize(
                     context,
                     engine_config,
-                    lambda _progress, _message: None,
-                    cancellation.is_set,
+                    progress or (lambda _progress, _message: None),
+                    lambda: cancellation.is_set() or is_cancelled(),
                 )
             parsed = _parse_model_response(result.content_markdown)
             answer = str(parsed.get("text") or "").strip()

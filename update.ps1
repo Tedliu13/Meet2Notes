@@ -89,6 +89,11 @@ try {
     Invoke-Checked $Python @(
         "-m", "local_meeting_ai.updater", "validate", "--request-file", $RequestFile
     )
+    Write-Host "Verifying the selected local LLM without loading it..." -ForegroundColor Cyan
+    Invoke-Checked $Python @(
+        "-m", "local_meeting_ai.model_setup", "--repair-existing-summary",
+        "--data-dir", ([string]$Request.data_directory)
+    )
 } catch {
     Write-Warning "The update did not validate. Restoring the previous source revision."
     & git reset --hard $OldHead

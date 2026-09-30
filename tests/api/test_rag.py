@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 from local_meeting_ai.adapters.embeddings import (
@@ -76,6 +77,58 @@ class RecordingSummaryEngine:
 
     def shutdown(self) -> None:
         return None
+
+
+@pytest.mark.parametrize("automatic", [True, False])
+def test_bonsai_full_attachment_grows_context_without_truncating(settings, automatic, monkeypatch):
+    engine = RecordingSummaryEngine()
+    monkeypatch.setattr(engine, "capability", lambda: {
+        "available": True, "installed": True, "models": [{"id": "bonsai-27b-1bit"}],
+    })
+    with TestClient(create_app(settings, summary_engine=engine)) as client:
+        saved = client.put("/api/settings", json={"summary_engine": {
+            "profile_id": "bonsai-27b-1bit", "provider": "local",
+            "context_length": 8192, "bonsai_auto_context": automatic,
+        }})
+        assert saved.status_code == 200, saved.text
+        text = "Detailed meeting evidence. " * 3000 + "UNIQUE_FINAL_DECISION"
+        meeting = _completed_transcript(client, "Long meeting", text)
+        transcript = client.app.state.container.transcriptions.active_for_meeting(meeting)
+        response = client.post("/api/prompt", json={
+            "question": "What is the final decision?", "meeting_id": meeting,
+            "use_rag": True, "attachments": [{"kind": "transcription", "id": transcript.id}],
+        })
+        if automatic:
+            assert response.status_code == 200
+            assert 8192 < engine.configs[-1]["context_length"] <= 262144
+            assert text in engine.contexts[-1]
+            assert response.json()["retrieval"] is None
+        else:
+            assert response.status_code == 422
+            assert not engine.contexts
+
+
+def test_prompt_keeps_chat_roles_and_separates_summary_default(settings: AppSettings) -> None:
+    engine = RecordingSummaryEngine()
+    with TestClient(create_app(settings, summary_engine=engine)) as client:
+        turns = [
+            {"role": "user", "content": "Who spoke?"},
+            {"role": "assistant", "content": "Alex and Morgan"},
+        ]
+        payload = {"question": "What about the PDF?", "use_rag": False, "history": turns}
+        response = client.post("/api/prompt", json=payload)
+        assert response.status_code == 200
+        config = engine.configs[-1]
+        assert config["prompt_turns"] == turns
+        assert config["prompt_question"] == "What about the PDF?"
+        assert "question-answering" in config["system_prompt"]
+        assert "Summarize" not in config["system_prompt"]
+        assert response.json()["context_usage"]["history_tokens"] > 0
+        client.put("/api/settings", json={
+            "summary_engine": {"system_prompt": "Use a friendly professional tone."},
+        })
+        assert client.post("/api/prompt", json=payload).status_code == 200
+        assert engine.configs[-1]["system_prompt"] == "Use a friendly professional tone."
 
 
 def _completed_transcript(client: TestClient, title: str, text: str) -> int:
@@ -284,6 +337,8 @@ def test_prompt_accepts_raw_transcript_and_summary_attachments(settings: AppSett
         assert "[A2] Summary" in summary_engine.contexts[-1]
         assert "lanzamiento para el martes" in summary_engine.contexts[-1]
         assert "[R1]" not in summary_engine.contexts[-1]
+        assert [item["citation_id"] for item in payload["citations"]] == ["A1", "A2"]
+        assert all(item["meeting_id"] == meeting_id for item in payload["citations"])
 
 
 def test_prompt_rejects_raw_documents_outside_scope(settings: AppSettings) -> None:

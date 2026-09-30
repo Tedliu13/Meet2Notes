@@ -475,18 +475,31 @@
       .forEach((element) => { element.textContent = loadedMessage; });
 
     const cudaDevices = Number(transcription.cuda_devices || 0);
+    const cudaReady = Boolean(transcription.cuda_available);
     const cudaOption = [...$("#fw-device").options].find(
       (option) => option.value === "cuda",
     );
     if (cudaOption) {
-      cudaOption.disabled = cudaDevices === 0;
-      cudaOption.textContent = cudaDevices
+      cudaOption.disabled = !cudaReady;
+      cudaOption.textContent = cudaReady
         ? `CUDA · ${cudaDevices} NVIDIA GPU${cudaDevices === 1 ? "" : "s"}`
         : "CUDA · no compatible GPU detected";
     }
-    $("#engine-device-note").textContent = cudaDevices
+    $("#engine-device-note").textContent = cudaReady
       ? `${cudaDevices} CUDA device${cudaDevices === 1 ? "" : "s"} detected; Auto will use CUDA.`
       : "No CUDA device detected; Auto will use the CPU.";
+    const cudaRuntime = transcription.cuda_runtime || {};
+    const cudaWarning = Boolean(cudaRuntime.message);
+    $("#linux-cuda-notice").hidden = !cudaWarning;
+    if (cudaWarning) {
+      $("#engine-device-note").textContent = t("cuda.unavailable");
+      $("#linux-cuda-message").textContent = t(
+        cudaRuntime.state === "restart_required" ? "cuda.restart" : "cuda.unavailable",
+      );
+      $("#linux-cuda-detail").textContent = cudaRuntime.detail || "";
+      $("#linux-cuda-command").textContent = cudaRuntime.repair_command || "";
+      $("#linux-cuda-repair").hidden = !cudaRuntime.can_install;
+    }
 
     const active = Number(worker.active_requests || 0);
     $("#engine-worker-summary").textContent = worker.last_error
@@ -693,7 +706,7 @@
     const provider = config.provider === "openai-compatible" ? "litellm" : (config.provider || "local");
     $("#ai-provider").value = provider;
     $("#ai-profile-id").value = provider === "litellm"
-      ? "litellm-custom"
+      ? (config.profile_id === "ollama" ? "ollama" : "litellm-custom")
       : (config.profile_id || profileIdForSummaryModel(config.model));
     $("#ai-local-runtime").value =
       config.local_runtime || "managed-llama-cpp";
@@ -711,7 +724,9 @@
     $("#ai-litellm-model").value = provider === "litellm" ? (config.model || "") : "";
     $("#ai-litellm-base-url").value = config.base_url || "";
     $("#ai-key-env").value = config.api_key_env || "MEET2NOTES_AI_API_KEY";
+    $("#ai-streaming").checked = config.streaming ?? true;
     $("#ai-context-length").value = config.context_length ?? 16384;
+    $("#ai-bonsai-auto-context").checked = config.bonsai_auto_context ?? true;
     $("#ai-batch-size").value = config.batch_size ?? 512;
     $("#ai-micro-batch").value = config.micro_batch_size ?? 128;
     $("#ai-threads").value = config.threads ?? 0;
@@ -736,6 +751,7 @@
     $("#ai-custom-preload-on-start").checked = config.preload_on_start ?? true;
     $("#ai-system-prompt").value = config.system_prompt || "";
     updateAiFields();
+    if (config.profile_id === "ollama") window.Meet2NotesOllama.configure(config);
   }
 
   function profileIdForSummaryModel(model) {
@@ -803,7 +819,7 @@
     if (!select) return;
     select.replaceChildren();
     (liveAssistantCatalog.models || [])
-      .filter((profile) => profile.id !== "custom-gguf")
+      .filter((profile) => !["custom-gguf", "ollama"].includes(profile.id))
       .forEach((profile) => {
         const remote = profile.id === "litellm-custom";
         const ready = remote
@@ -834,6 +850,7 @@
     $("#live-assistant-context-seconds").value = config.recent_context_seconds ?? 180;
     $("#live-assistant-cooldown").value = config.cooldown_seconds ?? 30;
     $("#live-assistant-rate").value = config.max_calls_per_minute ?? 6;
+    $("#live-assistant-streaming").checked = config.streaming ?? true;
     $("#live-assistant-context-length").value = config.context_length ?? 8192;
     $("#live-assistant-max-output").value = config.max_output_tokens ?? 1024;
     $("#live-assistant-temperature").value = config.temperature ?? 0.2;
@@ -1118,15 +1135,17 @@
     const provider = $("#ai-provider").value;
     const isRemote = provider === "litellm" || provider === "openai-compatible";
     const isCustomGguf = $("#ai-profile-id").value === "custom-gguf";
+    const isOllama = $("#ai-profile-id").value === "ollama";
     $("#ai-base-url").disabled = !isRemote;
     $("#ai-key-env").disabled = !isRemote;
     $("#ai-local-runtime").disabled = provider !== "local";
     $("#ai-model-path").disabled = provider !== "local";
     $("#ai-local-basic")?.toggleAttribute("hidden", isRemote || isCustomGguf);
     $("#ai-custom-gguf-basic")?.toggleAttribute("hidden", !isCustomGguf);
-    $("#ai-litellm-basic")?.toggleAttribute("hidden", !isRemote);
+    $("#ai-litellm-basic")?.toggleAttribute("hidden", !isRemote || isOllama);
+    $("#ai-ollama-basic")?.toggleAttribute("hidden", !isOllama);
     if ($("#ai-basic-description")) {
-      $("#ai-basic-description").textContent = isRemote
+      $("#ai-basic-description").textContent = isOllama ? t("ollama.help") : isRemote
         ? "Only the connection details required by LiteLLM are shown here."
         : isCustomGguf
           ? "Choose an existing GGUF file and decide whether to load it at startup."
@@ -1769,6 +1788,7 @@
       });
       toast("Transcription settings saved locally.");
       setSavedState("Engine saved just now");
+      window.dispatchEvent(new Event("audio-settings-changed"));
       currentComputeType = preferences.faster_whisper.compute_type;
       populateEngineSettings(preferences, latestCapabilities || {});
       await refreshEngineCapability();
@@ -2003,9 +2023,10 @@
       if (!selectedProfile) throw new Error("The selected AI model is unavailable.");
       const engine = selectedProfile.engine || "llama-cpp";
       const remote = provider === "litellm";
+      const ollama = profileId === "ollama" ? window.Meet2NotesOllama.selection() : null;
       const customGguf = profileId === "custom-gguf";
       const apiKey = $("#ai-api-key")?.value.trim() || "";
-      if (remote && apiKey) {
+      if (remote && !ollama && apiKey) {
         const credential = await api("/api/settings/summary-api-key", {
           method: "PUT",
           body: JSON.stringify({ api_key: apiKey }),
@@ -2021,12 +2042,14 @@
             provider,
             profile_id: profileId,
             local_runtime: $("#ai-local-runtime").value,
-            model: remote ? $("#ai-litellm-model").value.trim() : (selectedProfile.repository || "custom-gguf"),
+            model: ollama?.model || (remote ? $("#ai-litellm-model").value.trim() : (selectedProfile.repository || "custom-gguf")),
             model_file: remote ? "not-managed.gguf" : (selectedProfile.model_file || "external.gguf"),
             model_path: customGguf ? ($("#ai-custom-gguf-path").value.trim() || null) : null,
-            base_url: remote ? ($("#ai-litellm-base-url").value.trim() || null) : null,
+            base_url: ollama?.base_url || (remote ? ($("#ai-litellm-base-url").value.trim() || null) : null),
             api_key_env: $("#ai-key-env").value.trim(),
+            streaming: $("#ai-streaming").checked,
             context_length: Number($("#ai-context-length").value),
+            bonsai_auto_context: $("#ai-bonsai-auto-context").checked,
             batch_size: Number($("#ai-batch-size").value),
             micro_batch_size: Number($("#ai-micro-batch").value),
             threads: Number($("#ai-threads").value),
@@ -2047,7 +2070,7 @@
             flash_attention: $("#ai-flash-attention").checked,
             numa: $("#ai-numa").checked,
             keep_model_loaded: $("#ai-keep-loaded").checked,
-            preload_on_start: customGguf
+            preload_on_start: ollama ? false : customGguf
               ? $("#ai-custom-preload-on-start").checked
               : $("#ai-preload-on-start").checked,
             system_prompt: $("#ai-system-prompt").value.trim(),
@@ -2055,6 +2078,8 @@
         }),
       });
       toast("AI engine settings saved locally.");
+      summaryPreferences = await api("/api/settings");
+      renderSummaryCatalog(summaryModels, summaryPreferences);
       setSavedState("AI settings saved just now");
     } catch (error) {
       toast(error.message, "error");
@@ -2120,7 +2145,8 @@
         model_path: null,
         base_url: remote ? ($("#live-assistant-base-url").value.trim() || null) : null,
         api_key_env: "MEET2NOTES_LIVE_ASSISTANT_API_KEY",
-        context_length: Number($("#live-assistant-context-length").value),
+        streaming: $("#live-assistant-streaming").checked,
+            context_length: Number($("#live-assistant-context-length").value),
         max_output_tokens: Number($("#live-assistant-max-output").value),
         temperature: Number($("#live-assistant-temperature").value),
         gpu_layers: Number($("#live-assistant-gpu-layers").value),
@@ -2194,6 +2220,7 @@
       });
       toast("Diarization settings saved locally.");
       setSavedState("Diarization saved just now");
+      window.dispatchEvent(new Event("audio-settings-changed"));
       await refreshEngineCapability();
     } catch (error) {
       toast(error.message, "error");
@@ -2337,6 +2364,15 @@
       if (!profile) throw new Error("The selected AI model is unavailable.");
       if (action === "select") {
         const current = summaryPreferences?.summary_engine || {};
+        if (profileId === "ollama") {
+          $("#ai-provider").value = "litellm";
+          $("#ai-profile-id").value = "ollama";
+          updateAiFields();
+          const wasOllama = /^(ollama|ollama_chat)\//.test(current.model || "");
+          window.Meet2NotesOllama.configure(wasOllama ? current : {});
+          $("#ai-ollama-basic").scrollIntoView({ block: "nearest", behavior: "smooth" });
+          return;
+        }
         const remote = profile.id === "litellm-custom" || profile.provider === "litellm";
         const customGguf = profile.id === "custom-gguf";
         const updated = await api("/api/settings", {
@@ -2352,7 +2388,8 @@
               model_file: remote ? "not-managed.gguf" : (profile.model_file || "external.gguf"),
               model_path: customGguf ? (current.profile_id === "custom-gguf" ? current.model_path : null) : null,
               base_url: remote ? current.base_url : null,
-              preload_on_start: current.preload_on_start ?? true,
+              context_length: profile.context_length ?? current.context_length,
+              preload_on_start: profile.preload_on_start ?? current.preload_on_start ?? true,
             },
           }),
         });
@@ -2870,6 +2907,22 @@
       await refreshWebhooks();
       toast("Webhook delivery queued again.", "success");
     } catch (error) {
+      toast(error.message, "error");
+    }
+  });
+
+  $("#linux-cuda-repair")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = t("cuda.installing");
+    try {
+      await api("/api/runtimes/linux-cuda/install", { method: "POST" });
+      button.textContent = t("cuda.restart");
+      $("#linux-cuda-message").textContent = t("cuda.restart");
+      toast(t("cuda.restart"), "success");
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = t("cuda.repair");
       toast(error.message, "error");
     }
   });

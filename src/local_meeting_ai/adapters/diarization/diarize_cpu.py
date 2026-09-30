@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import os
+import queue
 import subprocess
 import sys
 import threading
@@ -166,13 +167,13 @@ class DiarizeCpuEngine:
             if is_cancelled():
                 raise JobCancelledError("Diarization was cancelled")
             self._ensure_worker()
-            progress(0.05, "Running diarize CPU speaker analysis")
+            progress(0.05, "Running diarize CPU speaker analysis · percentage unavailable")
             request = {
                 "action": "diarize",
                 "audio_path": str(audio_path),
                 "num_speakers": _known_speaker_count(config),
             }
-            response = self._request_worker(request)
+            response = self._request_worker(request, progress, is_cancelled)
             if is_cancelled():
                 raise JobCancelledError("Diarization was cancelled")
             if not bool(response.get("ok")):
@@ -281,15 +282,53 @@ class DiarizeCpuEngine:
         )
         self._set_state("ready")
 
-    def _request_worker(self, request: dict[str, Any]) -> dict[str, Any]:
+    def _request_worker(
+        self, request: dict[str, Any], progress: ProgressReporter | None = None,
+        is_cancelled: CancellationCheck | None = None,
+    ) -> dict[str, Any]:
         process = self._process
         if process is None or process.stdin is None or process.stdout is None:
             raise CapabilityUnavailableError("The diarize CPU worker did not start")
         process.stdin.write(json.dumps(request) + "\n")
         process.stdin.flush()
-        deadline = time.monotonic() + 60 * 60
+        lines: queue.Queue[str | None] = queue.Queue()
+
+        def read_response() -> None:
+            assert process.stdout is not None
+            try:
+                for line in process.stdout:
+                    # Libraries may print diagnostics before the protocol response.
+                    try:
+                        payload = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(payload, dict) and "ok" in payload:
+                        lines.put(line)
+                        return
+            finally:
+                lines.put(None)
+
+        reader = threading.Thread(target=read_response, daemon=True, name="diarize-response")
+        reader.start()
+        started = time.monotonic()
+        last_notice = started
+        # Long meetings can legitimately take more than an hour on a slow CPU.
+        deadline = started + 24 * 60 * 60
         while time.monotonic() < deadline:
-            line = process.stdout.readline()
+            if is_cancelled is not None and is_cancelled():
+                self.unload()
+                reader.join(timeout=2)
+                raise JobCancelledError("Diarization was cancelled")
+            now = time.monotonic()
+            if progress is not None and now - last_notice >= 15:
+                elapsed = int(now - started)
+                progress(0.05, f"CPU speaker analysis still running · {elapsed // 60}m "
+                         f"{elapsed % 60:02d}s elapsed · percentage unavailable")
+                last_notice = now
+            try:
+                line = lines.get(timeout=0.5)
+            except queue.Empty:
+                continue
             if line:
                 try:
                     response = json.loads(line)
@@ -297,11 +336,13 @@ class DiarizeCpuEngine:
                     logger.warning("Ignoring unexpected diarize worker output: %s", line.strip())
                     continue
                 return response if isinstance(response, dict) else {}
-            if process.poll() is not None:
+            if line is None:
                 raise CapabilityUnavailableError(
                     "The diarize CPU worker stopped unexpectedly. See the application log."
                 )
-        raise CapabilityUnavailableError("The diarize CPU worker timed out")
+        self.unload()
+        reader.join(timeout=2)
+        raise CapabilityUnavailableError("The diarize CPU worker timed out after 24 hours")
 
     def _runtime_python(self) -> Path:
         return self.runtime_dir / (

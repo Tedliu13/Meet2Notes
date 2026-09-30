@@ -10,12 +10,8 @@ from local_meeting_ai.adapters.diarization.diarize_cpu import DiarizeCpuEngine
 from local_meeting_ai.adapters.diarization.pyannote_community import (
     PyannoteCommunityDiarizationEngine,
 )
-from local_meeting_ai.adapters.diarization.sherpa_onnx import (
-    SherpaOnnxDiarizationEngine,
-)
 from local_meeting_ai.adapters.embeddings import FastEmbedBgeM3Provider
-from local_meeting_ai.adapters.summary.llama_cpp import LlamaCppSummaryEngine
-from local_meeting_ai.adapters.transcription.faster_whisper import FasterWhisperEngine
+from local_meeting_ai.adapters.summary.llama_cpp import LOCAL_MODELS, LlamaCppSummaryEngine
 from local_meeting_ai.adapters.transcription.nvidia_asr import (
     build_nemotron_engine,
     build_parakeet_engine,
@@ -25,6 +21,8 @@ from local_meeting_ai.application.ai_services import (
     DIARIZATION_DEFAULTS,
     SUMMARY_DEFAULTS,
 )
+from local_meeting_ai.application.audio_setup import install_audio_bundle
+from local_meeting_ai.application.live_assistant import LIVE_ASSISTANT_DEFAULTS
 from local_meeting_ai.application.rag import RAG_DEFAULTS
 from local_meeting_ai.application.transcription_config import FASTER_WHISPER_MODELS
 from local_meeting_ai.config import AppSettings
@@ -32,6 +30,11 @@ from local_meeting_ai.domain.entities import ModelProfile
 from local_meeting_ai.infrastructure.database.connection import Database
 from local_meeting_ai.infrastructure.database.migrations import MigrationRunner
 from local_meeting_ai.infrastructure.database.repositories import SettingsRepository
+from local_meeting_ai.infrastructure.summary_hardware import (
+    LIGHT_PROFILE,
+    detect_hardware,
+    recommend,
+)
 from local_meeting_ai.paths import AppPaths
 
 MODEL_CHOICES = (
@@ -65,9 +68,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--whisper-model",
-        choices=FASTER_WHISPER_MODELS,
-        default="small",
-        help="Faster Whisper model to install (default: small)",
+        choices=("auto", *FASTER_WHISPER_MODELS),
+        default="auto",
+        help="Audio hardware profile, preserving existing preferences (default: auto)",
     )
     parser.add_argument(
         "--data-dir",
@@ -79,6 +82,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Model directory (default: <Meet2Notes installation>/models)",
     )
+    parser.add_argument(
+        "--llm-profile", choices=("auto", "light", "bonsai-1bit", "bonsai-ternary", "none"),
+        default="auto", help="Automatic hardware recommendation; preserves existing AI settings",
+    )
+    parser.add_argument("--llm-backend", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument(
+        "--repair-existing-summary", action="store_true",
+        help="Updater mode: verify the saved managed LLM without migrations or settings changes",
+    )
     return parser
 
 
@@ -88,6 +100,9 @@ async def install_models(
     whisper_model: str,
     data_dir: Path | None,
     models_dir: Path | None,
+    llm_profile: str = "auto",
+    llm_backend: str = "auto",
+    repair_existing_summary: bool = False,
 ) -> None:
     install_defaults = "all" in selections
     requested = (
@@ -95,15 +110,38 @@ async def install_models(
         if install_defaults
         else selections
     )
-    settings = AppSettings(data_dir=data_dir, models_dir=models_dir)
-    paths = AppPaths.from_settings(settings)
-    paths.ensure()
+    overrides: dict[str, Any] = {}
+    if data_dir is not None:
+        overrides["data_dir"] = data_dir
     if models_dir is not None:
-        database = Database(paths.database)
-        MigrationRunner(database).apply()
-        SettingsRepository(database).update({"models_directory": str(paths.models)})
+        overrides["models_dir"] = models_dir
+    settings = AppSettings(**overrides)
+    paths = AppPaths.from_settings(settings)
+    if repair_existing_summary:
+        if paths.database.is_file():
+            preferences = SettingsRepository(Database(paths.database))
+            saved = preferences.get_all()
+            if saved.get("summary_engine"):
+                if settings.models_dir is None and saved.get("models_directory"):
+                    paths = paths.with_models_directory(Path(saved["models_directory"]))
+                await _install_summary(paths, preferences)
+        return
+    paths.ensure()
+    database = Database(paths.database)
+    MigrationRunner(database).apply()
+    preferences = SettingsRepository(database)
+    saved = preferences.get_all()
+    if settings.models_dir is None and saved.get("models_directory"):
+        paths = paths.with_models_directory(Path(saved["models_directory"]))
+        paths.ensure()
+    if models_dir is not None:
+        preferences.update({"models_directory": str(paths.models)})
         print("Saved this model directory as the Meet2Notes runtime default.")
     print(f"Meet2Notes model directory: {paths.models}")
+
+    if whisper_model == "auto" and "whisper" in requested:
+        await install_audio_bundle(paths.models, preferences, backend=llm_backend)
+        requested = requested - {"whisper", "diarization"}
 
     if "whisper" in requested:
         print(f"[1/4] Downloading and verifying Faster Whisper '{whisper_model}'...")
@@ -126,9 +164,9 @@ async def install_models(
         print("      Pyannote Community-1 is ready.")
 
     if "summary" in requested:
-        print("[3/4] Downloading and verifying LFM2.5 1.2B Q4_K_M...")
-        await _install_summary(paths)
-        print("      Local meeting summaries are ready.")
+        await _install_summary(paths, preferences, llm_profile, llm_backend)
+        if install_defaults and llm_profile != "none":
+            await _install_live_summary(paths, preferences)
 
     if "embeddings" in requested:
         print("[4/4] Downloading and verifying BGE-M3 through FastEmbed...")
@@ -154,58 +192,95 @@ async def install_models(
 
 
 async def _install_whisper(paths: AppPaths, model: str) -> None:
-    engine = FasterWhisperEngine(paths.models)
-    profile = ModelProfile(
-        id="setup",
-        display_name="Installer",
-        description="Installer verification profile",
-        engine=engine.name,
-        model=model,
-        # Setup validates the portable path. Runtime Settings can still select
-        # CUDA after installation without making model download GPU-dependent.
-        device="cpu",
-        compute_type="int8",
-        beam_size=5,
-        vad_filter=True,
-        keep_model_loaded=False,
-    )
-    try:
-        await engine.prepare(profile, allow_model_download=True)
-        engine.unload()
-    finally:
-        engine.shutdown()
+    from local_meeting_ai.application.audio_setup import download_whisper
+
+    await asyncio.to_thread(download_whisper, paths.models, model)
 
 
 async def _install_diarization(paths: AppPaths) -> None:
-    engine = SherpaOnnxDiarizationEngine(paths.models)
-    config: dict[str, Any] = {
-        **DIARIZATION_DEFAULTS,
-        "provider": "cpu",
-        "keep_model_loaded": False,
-    }
+    from local_meeting_ai.application.audio_setup import download_sherpa
+
+    await asyncio.to_thread(download_sherpa, paths.models)
+
+
+async def _install_summary(
+    paths: AppPaths,
+    preferences: SettingsRepository,
+    selection: str = "auto",
+    backend: str = "auto",
+) -> None:
+    if selection == "none":
+        print("LLM installation skipped; existing AI settings are unchanged.")
+        return
+    previous = preferences.get_all().get("summary_engine")
+    preserve = selection == "auto" and isinstance(previous, dict) and bool(previous)
+    if preserve:
+        assert isinstance(previous, dict)
+        config = {**SUMMARY_DEFAULTS, **previous}
+        if config.get("provider") != "local" or config.get("profile_id") not in LOCAL_MODELS:
+            print("Keeping the existing external/custom AI model; no LLM download is needed.")
+            return
+        print(f"Keeping the existing AI model: {config['profile_id']}.")
+    else:
+        recommendation = recommend(detect_hardware(), backend)
+        profile_id = {
+            "light": LIGHT_PROFILE,
+            "bonsai-1bit": "bonsai-27b-1bit",
+            "bonsai-ternary": "bonsai-27b-ternary",
+        }.get(selection, recommendation.profile)
+        if backend == "cpu" and profile_id != LIGHT_PROFILE:
+            raise ValueError("Choose --llm-profile light for forced CPU installation.")
+        profile = LOCAL_MODELS[profile_id]
+        config = {
+            **SUMMARY_DEFAULTS, "provider": "local", "engine": "llama-cpp",
+            "profile_id": profile_id, "model": profile["repository"],
+            "model_file": profile["model_file"],
+            "context_length": profile.get("context_length", SUMMARY_DEFAULTS["context_length"]),
+            "main_gpu": recommendation.main_gpu,
+            "gpu_layers": 0 if backend == "cpu" else -1,
+            "preload_on_start": False,
+        }
+        print(f"LLM selection: {profile['display_name']}. " + (
+            recommendation.reason if selection == "auto" else "Explicit installer selection."
+        ))
+    engine = LlamaCppSummaryEngine(paths.models)
     try:
-        await engine.prepare(config, allow_model_download=True)
-        engine.unload()
+        print("Downloading/verifying LLM files only. No model loading or test response.")
+        try:
+            await engine.prepare(config, allow_model_download=True)
+        except Exception as error:
+            if preserve or selection != "auto" or config["profile_id"] == LIGHT_PROFILE:
+                raise
+            print(f"Bonsai installation unavailable: {error}. Installing lightweight LFM.")
+            profile = LOCAL_MODELS[LIGHT_PROFILE]
+            config = {
+                **SUMMARY_DEFAULTS, "profile_id": LIGHT_PROFILE,
+                "model": profile["repository"], "model_file": profile["model_file"],
+                "gpu_layers": 0, "preload_on_start": False,
+            }
+            await engine.prepare(config, allow_model_download=True)
+        if not preserve:
+            # Do not overwrite settings changed by the user while a large download was running.
+            if preferences.get_all().get("summary_engine") == previous:
+                preferences.update({"summary_engine": config})
+            else:
+                print("AI settings changed during installation; keeping the user's selection.")
+        print("LLM files are ready. The model will load when requested by the user.")
     finally:
         engine.shutdown()
 
 
-async def _install_summary(paths: AppPaths) -> None:
+async def _install_live_summary(paths: AppPaths, preferences: SettingsRepository) -> None:
+    saved = preferences.get_all().get("live_assistant")
+    config = {**LIVE_ASSISTANT_DEFAULTS, **(saved if isinstance(saved, dict) else {})}
+    if config.get("provider") != "local" or config.get("profile_id") not in LOCAL_MODELS:
+        return
+    # Live Assistant is independent: keep its lightweight default available
+    # instead of silently replacing it with a second resident 27B model.
     engine = LlamaCppSummaryEngine(paths.models)
-    # Model setup uses a deliberately small CPU context so validation does not
-    # reserve unnecessary RAM/VRAM. Runtime settings remain untouched.
-    config: dict[str, Any] = {
-        **SUMMARY_DEFAULTS,
-        "context_length": 2048,
-        "batch_size": 256,
-        "micro_batch_size": 64,
-        "gpu_layers": 0,
-        "flash_attention": False,
-        "keep_model_loaded": False,
-    }
     try:
+        print(f"Preparing the separate Live Assistant model: {config['profile_id']} (files only).")
         await engine.prepare(config, allow_model_download=True)
-        engine.unload()
     finally:
         engine.shutdown()
 
@@ -310,6 +385,9 @@ def main(argv: Sequence[str] | None = None) -> None:
                 whisper_model=arguments.whisper_model,
                 data_dir=arguments.data_dir,
                 models_dir=arguments.models_dir,
+                llm_profile=arguments.llm_profile,
+                llm_backend=arguments.llm_backend,
+                repair_existing_summary=arguments.repair_existing_summary,
             )
         )
     except KeyboardInterrupt as error:

@@ -10,6 +10,7 @@
   <script src="/static/js/theme-bootstrap.js?v={{ asset_version }}"></script>
   <link rel="stylesheet" href="/static/css/app.css?v={{ asset_version }}">
   <link rel="stylesheet" href="/static/css/ui-refresh.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/css/assistant-markdown.css?v={{ asset_version }}">
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="/static/css/themes.css?v={{ asset_version }}">
 </head>
@@ -150,6 +151,8 @@
 
   <div class="toast-region" id="toast-region" aria-live="polite"></div>
   <script src="/static/js/app.js?v={{ asset_version }}" defer></script>
+  <script src="/static/js/markdown.js?v={{ asset_version }}" defer></script>
+  <script src="/static/js/answer-stream.js?v={{ asset_version }}" defer></script>
   {% block scripts %}{% endblock %}
   <script src="/static/js/quick-actions.js?v={{ asset_version }}" defer></script>
 </body>

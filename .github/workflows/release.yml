@@ -48,6 +48,10 @@ jobs:
       - run: mypy src
       - run: python scripts/check_ui_i18n.py
       - run: pytest
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: node --test tests/web/*.test.cjs
       - name: Prepare release notes from changelog
         env:
           RELEASE_VERSION: ${{ inputs.version }}

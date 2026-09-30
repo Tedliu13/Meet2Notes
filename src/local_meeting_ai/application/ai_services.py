@@ -61,6 +61,7 @@ DIARIZATION_DEFAULTS: dict[str, Any] = {
 }
 
 SUMMARY_DEFAULTS: dict[str, Any] = {
+    "streaming": True,
     "engine": "llama-cpp",
     "provider": "local",
     "profile_id": "lfm2.5-1.2b-q4",
@@ -68,6 +69,7 @@ SUMMARY_DEFAULTS: dict[str, Any] = {
     "model": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
     "model_file": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
     "context_length": 16384,
+    "bonsai_auto_context": True,
     "batch_size": 512,
     "micro_batch_size": 128,
     "threads": 0,
@@ -362,6 +364,7 @@ class SummaryService:
                     "installed": selected_installed,
                     "available": selected.get("runtime_available", capability["available"]),
                     "selected_profile": config.get("profile_id"),
+                    "backend": selected.get("backend", capability.get("backend")),
                     "provider": config.get("provider"),
                 }
             )
@@ -576,6 +579,9 @@ class SummaryService:
         config["response_language"] = (
             document.analysis_language or transcription.language
         )
+        from local_meeting_ai.domain.meeting_text import transcript_prefix
+
+        config["bonsai_document_prefix"] = transcript_prefix(transcription.id, transcript)
         template_snapshot = job.payload.get("summary_template")
         if isinstance(template_snapshot, dict):
             config["summary_template"] = template_snapshot

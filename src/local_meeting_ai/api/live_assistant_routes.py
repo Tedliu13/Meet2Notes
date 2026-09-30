@@ -4,6 +4,7 @@ from dataclasses import asdict
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from local_meeting_ai.api.dependencies import get_container
@@ -113,6 +114,27 @@ def live_assistant_meeting(
             asdict(item) for item in container.live_assistant_repository.insights(meeting_id, limit)
         ],
     }
+
+
+@router.post("/meetings/{meeting_id}/questions/stream")
+async def stream_live_assistant(
+    meeting_id: int,
+    payload: LiveAssistantQuestion,
+    container: ContainerDependency,
+) -> StreamingResponse:
+    from .answer_stream import answer_stream
+
+    if container.meetings.get(meeting_id) is None:
+        raise NotFoundError("Meeting not found")
+    capture = container.capture_service.status()
+    if capture is not None and capture.meeting_id == meeting_id:
+        container.live_assistant_service.ensure_session(capture)
+    return answer_stream(
+        lambda progress, cancelled: container.live_assistant_service.ask(
+            meeting_id, payload.question, progress=progress, is_cancelled=cancelled,
+        ),
+        structured=True,
+    )
 
 
 @router.post("/meetings/{meeting_id}/questions")

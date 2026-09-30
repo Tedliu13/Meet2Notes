@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from local_meeting_ai import __version__
+
 
 def test_health_and_capabilities_are_explicit(client: TestClient) -> None:
     health = client.get("/api/health")
     assert health.status_code == 200
     assert health.json() == {
         "status": "ok",
-        "version": "0.7.0",
+        "version": __version__,
         "database": "ok",
         "queue": "running",
     }
@@ -92,7 +94,7 @@ def test_web_pages_and_security_headers(client: TestClient) -> None:
     assert 'data-export-source="transcript" data-export-format="pdf"' in response.text
     assert 'id="export-dialog"' in response.text
     assert "start-transcription-button hidden" in response.text
-    assert "?v=0.7.0-" in response.text
+    assert f"?v={__version__}-" in response.text
     assert "Find and replace" not in response.text
     assert response.headers["x-frame-options"] == "DENY"
     assert "default-src 'self'" in response.headers["content-security-policy"]

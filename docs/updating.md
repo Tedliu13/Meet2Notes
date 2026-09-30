@@ -36,7 +36,9 @@ Before changing source code, it uses SQLite's backup API to create:
 It then downloads the exact Release tag, updates Python dependencies without
 forcing model or PyTorch reinstallation, runs `pip check`, and applies all new
 database migrations to a disposable copy of the backup. The real `app.db` is
-not migrated until the validated application starts. A source or dependency
+not migrated until the validated application starts. It also verifies/repairs the
+saved managed LLM's files without loading it, changing its selection, or applying
+database migrations. A source or dependency
 failure restores the previous Git revision.
 
 The backup is intentionally retained after success so a user can recover data
@@ -49,8 +51,9 @@ manually if a later runtime problem is discovered.
 2. Merge to `main` and wait for the `quality` workflow to pass.
 3. Add the matching version section to `CHANGELOG.md` and run the manual
    `release` workflow with that exact version, such as `1.2.3`.
-4. The workflow re-runs Ruff, mypy, and pytest before publishing `v1.2.3` with
-   the reviewed notes extracted from the changelog.
+4. The workflow re-runs Ruff, mypy, UI translations, Python tests and browser
+   JavaScript unit tests before publishing `v1.2.3` with the reviewed notes
+   extracted from the changelog.
 
 The updater begins offering the release after GitHub publishes it. No update is
 offered while the repository has no stable Releases.

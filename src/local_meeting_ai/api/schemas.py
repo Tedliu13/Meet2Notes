@@ -129,6 +129,7 @@ class SummaryEnginePreference(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    streaming: bool = True
     engine: str = Field(default="llama-cpp", min_length=1, max_length=80)
     provider: str = Field(default="local", min_length=1, max_length=80)
     profile_id: str = Field(default="lfm2.5-1.2b-q4", min_length=1, max_length=80)
@@ -149,7 +150,8 @@ class SummaryEnginePreference(BaseModel):
         default="MEET2NOTES_AI_API_KEY",
         pattern=r"^[A-Z][A-Z0-9_]{0,127}$",
     )
-    context_length: int = Field(default=16384, ge=2048, le=131072)
+    context_length: int = Field(default=16384, ge=2048, le=262144)
+    bonsai_auto_context: bool = True
     batch_size: int = Field(default=512, ge=32, le=4096)
     micro_batch_size: int = Field(default=128, ge=16, le=4096)
     threads: int = Field(default=0, ge=0, le=256)
@@ -184,6 +186,15 @@ class SummaryEnginePreference(BaseModel):
     def validate_remote_provider(self) -> Self:
         if self.base_url and not self.base_url.startswith(("http://", "https://")):
             raise ValueError("The AI base URL must use HTTP or HTTPS")
+        if self.profile_id == "ollama":
+            from local_meeting_ai.infrastructure.ollama import normalize_url
+
+            if self.provider != "litellm" or not self.model.startswith("ollama_chat/"):
+                raise ValueError("The Ollama profile requires a selected Ollama chat model")
+            if not self.model.removeprefix("ollama_chat/").strip():
+                raise ValueError("Select an Ollama LLM first")
+            self.base_url = normalize_url(self.base_url)
+            self.preload_on_start = False
         return self
 
 
@@ -354,6 +365,7 @@ class PreferenceUpdate(BaseModel):
     confirm_permanent_delete: bool | None = None
     default_summary_template_id: int | None = Field(default=None, ge=1)
     transcription_engine: str = Field(default="faster-whisper", max_length=80)
+    automatic_model_memory: bool = False
     live_transcription_engine: str = Field(default="faster-whisper", max_length=80)
     live_transcription_profile: str = Field(default="default", max_length=40)
     final_transcription_engine: str = Field(default="faster-whisper", max_length=80)
@@ -378,6 +390,7 @@ class PreferenceResponse(BaseModel):
     confirm_permanent_delete: bool = True
     default_summary_template_id: int | None = None
     transcription_engine: str = "faster-whisper"
+    automatic_model_memory: bool = False
     live_transcription_engine: str = "faster-whisper"
     live_transcription_profile: str = "default"
     final_transcription_engine: str = "faster-whisper"

@@ -7,6 +7,7 @@
   <p>
     <a href="https://meet2notes.eu"><strong>Website</strong></a> ·
     <a href="#installation">Install</a> ·
+    <a href="#performance-demo">Performance demo</a> ·
     <a href="docs/README.md">Documentation</a> ·
     <a href="https://github.com/estebanstifli/Meet2Notes/issues">Support</a>
   </p>
@@ -16,7 +17,7 @@
     <img alt="Platforms" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-supported-176BFF">
     <img alt="Local first" src="https://img.shields.io/badge/AI-local--first-16A085">
     <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-111827">
-    <img alt="Version 0.7.0" src="https://img.shields.io/badge/version-0.7.0-176BFF">
+    <img alt="Version 0.8.0" src="https://img.shields.io/badge/version-0.8.0-176BFF">
   </p>
 </div>
 
@@ -45,6 +46,127 @@ selection, settings, lifecycle, and worker. A meeting is not tied to Faster
 Whisper, Sherpa-ONNX, or a particular language model.
 
 > Back up important recordings and obtain every consent required before recording a conversation.
+
+<a id="performance-demo"></a>
+
+## Performance demo: a two-hour debate on an 8 GB GPU
+
+Ask follow-up questions about a long recording with **Bonsai 27B 1-bit running
+locally**. This two-minute demo uses the transcript of *The ITV Leaders' Debate*
+and shows the actual Prompt interface answering three questions at original speed.
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=pDUrVM5XTZw">
+    <img src="docs/assets/meet2notes-bonsai-performance.png" alt="Watch the performance demo: two hours, three questions, one 8 GB GPU, with Bonsai 27B 1-bit" width="960">
+  </a>
+</p>
+<p align="center"><a href="https://www.youtube.com/watch?v=pDUrVM5XTZw"><strong>Watch the performance demo on YouTube</strong></a> · 2 min 6 sec · English narration</p>
+
+Measured on an **NVIDIA RTX 3070 with 8 GB VRAM and 32 GB system RAM**, using
+native Bonsai Q1_0 with a 65,536-token context window. The source recording is
+**2 h 18 min** long; the first request processed **42,343 input tokens**.
+
+| Follow-up question | First text | Complete answer | Generation speed |
+|---|---:|---:|---:|
+| Ed Miliband's main proposals | 1.64 s | 3.95 s | 31.2 tokens/s |
+| Cameron vs. Sturgeon on austerity | 1.62 s | 4.37 s | 31.3 tokens/s |
+| Nick Clegg's NHS funding proposal | 1.83 s | 2.61 s | 31.0 tokens/s |
+
+The initial cold request took **75.68 s**, including loading, context processing
+and its answer. Each follow-up reused **more than 42,000 cached tokens** and
+processed only 266–335 new input tokens. The initial wait is shortened and labeled
+in the video; the three follow-up answers run at real speed, with reading pauses
+after completion. All inference in this demo runs locally.
+
+These are three short answers from one run, not a guarantee for every recording
+or GPU. First-text and total times are measured at the application server;
+generation speed is reported by the native runtime and excludes prompt processing.
+See the [measurement details](docs/performance-demo.md).
+
+## Meet2Notes 0.8: long conversations, local answers
+
+Version **0.8.0** brings native Bonsai, reusable long-context processing, streamed
+assistant answers and hardware-aware setup. These are the changes since 0.7.0.
+
+### Native Bonsai and long meeting context
+
+- Managed **Bonsai 27B 1-bit and Ternary** GGUF models with a private, pinned,
+  hash-verified Prism llama.cpp runtime. No Ollama installation is required.
+- Automatic context sizing for native Bonsai in **AI notes, speaker notes and
+  assistant questions**, up to **262,144 total tokens** when memory permits.
+  That budget includes instructions, history and output, not just the transcript.
+  Complete attachments are never silently truncated. A checked system-RAM KV
+  fallback can handle GPU allocation failures, at a possible speed cost.
+- A stable transcript prefix and compressed KV cache let AI notes prepare the
+  context for later questions about the same attached transcript. Follow-ups reuse
+  it while the model stays loaded; changing the meeting, unloading the model or
+  growing its context window can require processing it again.
+- Fixed empty follow-up answers, premature answers that omitted names, and context
+  overflow in normal and hierarchical summaries. See [Bonsai setup and cache
+  behavior](docs/automatic-llm-setup.md).
+
+### Clearer, more useful assistants
+
+- **Markdown answers** in Meeting Assistant and Live Assistant: lists, headings,
+  tables and code, with safe links and escaped raw HTML.
+- **Optional streaming** for local llama.cpp, Ollama and LiteLLM providers, with
+  separate controls for Meeting Assistant and Live Assistant. Model loading and
+  context preparation remain visible before the first answer; unsupported
+  streaming falls back to a complete response when the provider rejects it.
+- Selecting a meeting automatically attaches its active completed transcript in
+  the widget and the **Prompt** page. Remove the context chip to opt out; switching
+  meetings clears the previous context and conversation.
+- Follow-up questions use proper conversation turns and a chat-specific prompt.
+  Source markers become readable meeting links; unverified references are labeled
+  instead of linking to unrelated evidence.
+
+### Reuse your Ollama models
+
+- **Settings → AI engine → Ollama** discovers an existing service on Windows,
+  Linux or macOS and lists verified text-generation models, excluding embedding-only
+  models. Choose an LLM and save without manually writing its provider identifier.
+- Connection diagnostics, editable local/remote addresses, cloud-model labels and
+  context-limit details make the selected model explicit. The configured context
+  is passed to Ollama. Discovery does not start Ollama or download/load models.
+  See the [Ollama guide](docs/ollama.md).
+
+### Installation adapted to your hardware
+
+- Fresh installations select **Bonsai 1-bit for compatible 8–15 GB NVIDIA GPUs**,
+  **Ternary for 16+ GB**, or **LFM2.5 1.2B Q4** for CPU and unsupported systems.
+  Automatic Bonsai selection also checks OS, architecture, driver and system RAM;
+  VRAM alone is not sufficient. Windows, Unix, Pinokio and the model CLI share
+  the policy. Model choices and custom storage are preserved on updates.
+- LLM installation downloads and verifies files without loading a model or
+  generating a test answer. Fresh automatic LLM profiles load on demand.
+- Coordinated **live/final transcription profiles** select lighter Whisper INT8
+  models for CPU or Small/Turbo for validated NVIDIA CUDA, with Sherpa-ONNX CPU
+  diarization. Existing users can apply the recommendation explicitly in Settings.
+  Pinokio also selects the appropriate CPU/CUDA PyTorch build on installation.
+- Optional **release of idle models between stages** reduces competing memory use
+  while retaining the summary model across follow-up questions. Whisper can retry
+  a CUDA/memory failure on CPU before any transcript segments have been emitted.
+  See [automatic audio setup](docs/automatic-audio-setup.md).
+
+### Linux GPU setup and long-recording fixes
+
+- Detect CUDA 12 / cuDNN 9 libraries in the private environment and supported
+  system locations. Installers can repair missing libraries; Settings offers
+  diagnostics and an explicit repair action. Auto mode falls back to CPU/int8
+  when CUDA is unavailable. No system driver changes or `sudo` are performed.
+  See [Linux CUDA setup](docs/linux-cuda.md).
+- Long `diarize` CPU jobs report elapsed activity every 15 seconds, show
+  indeterminate progress and can be cancelled while the worker is busy.
+- Long transcripts render in batches with progress; the speaker panel loads when
+  opened. This reduces browser stalls when viewing large meetings.
+- Completed **AI notes appear automatically**, including when summary generation
+  and search indexing finish together, instead of staying at “AI analysis is queued”.
+- Transcript and speaker playback use the normalized WAV when available, fixing
+  inaccurate seeking in long variable-bitrate MP3 files.
+
+See [the changelog](CHANGELOG.md#080---2026-09-30) for the detailed change list and
+upgrade instructions. The six-second overview below and the earlier presentation
+remain available.
 
 ## Meet2Notes 0.7: find the moment, organize the work
 
@@ -164,6 +286,9 @@ setup, tools, lifecycle, and security details.
 
 ## Demo
 
+For the new Bonsai benchmark, see the [performance demo above](#performance-demo).
+The original presentation covers the broader recording-to-notes workflow:
+
 <p align="center">
   <a href="https://youtu.be/Z2wRrs9Q9pU">
     <img src="https://img.youtube.com/vi/Z2wRrs9Q9pU/maxresdefault.jpg" alt="Meet2Notes presentation and demo" width="800">
@@ -224,7 +349,7 @@ remain managed by Meet2Notes and are not removed automatically.
 git clone https://github.com/estebanstifli/Meet2Notes.git
 cd Meet2Notes
 chmod +x install.sh
-./install.sh --ai-backend cpu
+./install.sh --ai-backend auto
 .venv/bin/meet2notes --no-browser
 ```
 
@@ -284,7 +409,9 @@ contains:
 | NVIDIA Parakeet TDT 0.6B v3 | ~2.6 GB | Supported by runtime | Recommended | No | Yes |
 | Microsoft VibeVoice ASR BitNet | 1.58 GB | Yes | No | No | Yes |
 
-Faster Whisper defaults to `small` and supports automatic language detection,
+Fresh installations choose Faster Whisper models for the hardware: Small/Turbo
+on compatible NVIDIA GPUs, or lighter INT8 bundles on CPU. Existing selections
+are preserved. Faster Whisper supports automatic language detection,
 an explicit language such as Spanish, word timestamps, VAD, beam search,
 compute type, CPU thread count, worker count, and live window overlap.
 Distil Large v3 is English-only. The experimental VibeVoice BitNet runtime is
@@ -333,16 +460,31 @@ local catalog uses llama.cpp:
 
 | Model | Approx. download | Notes |
 |---|---:|---|
-| LFM2.5 1.2B Q4 | 731 MB | Recommended private local default |
+| Bonsai 27B 1-bit | 3.80 GB + runtime | Compatible NVIDIA GPUs with 8–15 GB VRAM; starts at 8K, automatic context growth |
+| Bonsai 27B Ternary | 7.17 GB + runtime | Compatible NVIDIA GPUs with 16+ GB VRAM; starts at 16K, automatic context growth |
+| LFM2.5 1.2B Q4 | 731 MB | Lightweight default for CPU and other configurations |
 | Qwen3 0.6B Q8 | 639 MB | Smallest multilingual local option |
 | Qwen3 1.7B Q8 | 1.83 GB | Higher-quality multilingual local option |
 | Custom GGUF | User-provided | Loads an existing compatible GGUF selected with the file picker |
+| Ollama | No managed download | Detects the service and lists available text LLMs for selection |
 | Custom local / remote via LiteLLM | No managed download | Connects Ollama, LM Studio, OpenAI-compatible endpoints, or another LiteLLM provider |
 
 Custom GGUF files remain owned by the user: selecting or removing a profile
 does not delete the external file. Model path, context size, GPU layers,
 threads, batch size, sampling, and generation limits are configurable. LiteLLM
 profiles expose the model identifier, URL/base URL, and provider options.
+
+With automatic context enabled, native Bonsai can grow its initial window up to
+262,144 total tokens subject to memory checks. AI notes and assistant questions
+can share the resident transcript KV prefix. This demo validates a 65,536-token
+window, not the full 262K limit. See [automatic LLM setup](docs/automatic-llm-setup.md)
+for hardware requirements, cache lifetime and overrides.
+
+To reuse models already in Ollama, select **Ollama** in **Settings → AI engine**,
+choose an LLM and save. Meet2Notes fills in the connection and model identifier,
+shows connection diagnostics, and sends the configured context window to Ollama.
+Discovery does not start the service, load models, or download anything.
+See [Ollama setup](docs/ollama.md) for local, remote and Docker addresses.
 
 LiteLLM API keys are stored through the operating system keyring (Windows
 Credential Manager on Windows), not in SQLite or browser storage. The UI stores
@@ -402,8 +544,9 @@ adding another toolbar row. Meet2Notes warns before unsaved edits are discarded
 when changing sections, following an internal link, refreshing, or closing the
 page.
 
-Long transcripts are handled automatically with hierarchical AI notes. The
-summary worker estimates the prompt against the configured context window,
+Long transcripts are handled with automatic context sizing for native Bonsai and
+hierarchical AI notes when chunking is needed. The summary worker estimates the
+prompt against the available context window,
 splits oversized meetings at transcript-line boundaries, extracts grounded
 evidence from every block, recursively consolidates those reports, and only
 then applies the selected Note Format. The finishing dialog shows the estimated
@@ -427,10 +570,14 @@ The post-meeting Meeting Assistant is available from the meeting library and eve
 completed meeting. It uses local RAG by default, combines dense retrieval with
 SQLite FTS5/BM25 through Reciprocal Rank Fusion, and narrows all-history searches to
 a relevant meeting shortlist before retrieving transcript evidence. For a selected
-meeting, completed transcript versions and AI-note versions can also be attached as
-raw context; the widget reports an estimated token budget and prevents oversized
-attachments from silently triggering expensive multi-pass processing. The legacy
-Prompt page remains available for compatibility.
+meeting, its active completed transcript is attached automatically and can be
+removed with the context chip. Other completed transcript versions and AI-note
+versions can also be attached. Full transcript attachments use that document
+directly rather than redundant RAG retrieval. The widget reports an estimated token
+budget; native Bonsai can grow its context automatically, while oversized
+attachments produce an explicit error if the model or available memory cannot
+accommodate them. Both the widget and the dedicated Prompt page support streamed
+Markdown answers and readable source links.
 
 ## Desktop AI clients through MCP
 
@@ -568,6 +715,14 @@ Linux:
 .venv/bin/meet2notes --no-browser
 ```
 
+On Linux, Faster Whisper automatically finds CUDA 12 / cuDNN 9 libraries in the
+active Python environment, conda/Pinokio, and standard CUDA locations. No manual
+`LD_LIBRARY_PATH` export is needed for supported libraries. The Linux installer
+and Pinokio update install missing libraries when a working NVIDIA GPU is detected.
+If CUDA is unavailable, **Auto** transcribes on CPU/int8; **Settings → Transcription**
+shows the diagnostic and a repair button when libraries can be installed in the
+private environment. Restart after repairing. See [Linux CUDA troubleshooting](docs/linux-cuda.md).
+
 If Meet2Notes was initially installed in CPU mode and the user later selects a
 CUDA-only configuration, Settings detects the mismatch. A confirmation dialog
 explains the change and a progress dialog streams the package installation log
@@ -634,8 +789,19 @@ for the complete transaction and recovery model.
 
 ## Model installation and storage
 
-The default installer downloads Faster Whisper Small, Sherpa-ONNX diarization,
-the shared saved-voice embedding model, and LFM2.5 1.2B Q4. Historical RAG selects
+The default installer downloads the recommended live/final Faster Whisper bundle, Sherpa-ONNX diarization,
+the shared saved-voice embedding model, and a local LLM selected for the hardware:
+Bonsai 27B 1-bit on compatible 8+ GB NVIDIA GPUs, Ternary on 16+ GB GPUs,
+or LFM2.5 1.2B Q4 elsewhere. Existing AI model selections are preserved on updates.
+Bonsai uses a private, pinned Prism llama.cpp runtime and does not require Ollama.
+LLM installation downloads and verifies files without loading the model or generating
+a test answer. Full installation retains LFM for the independent Live Assistant
+unless that assistant has another saved model. New installations load the LLM on demand. See
+[automatic model setup](docs/automatic-llm-setup.md) for requirements and overrides.
+See [automatic audio setup](docs/automatic-audio-setup.md) for the CPU/GPU profiles,
+memory management, and long-diarization activity reporting. Settings → Transcription
+can install and apply the recommendation to an existing installation.
+Historical RAG selects
 BGE-M3 by default and installs it directly through FastEmbed/ONNX Runtime without
 Ollama or PyTorch. Other catalog entries are opt-in.
 Models are reused between sessions and are separate from recordings and the SQLite
@@ -648,6 +814,8 @@ setup is also available:
 .\.venv\Scripts\meet2notes-models.exe --models all
 .\.venv\Scripts\meet2notes-models.exe --models whisper --whisper-model medium
 .\.venv\Scripts\meet2notes-models.exe --models diarization summary
+.\.venv\Scripts\meet2notes-models.exe --models summary --llm-profile light
+.\.venv\Scripts\meet2notes-models.exe --models summary --llm-profile bonsai-1bit
 .\.venv\Scripts\meet2notes-models.exe --models embeddings
 .\.venv\Scripts\meet2notes-models.exe --models nvidia-parakeet
 .\.venv\Scripts\meet2notes-models.exe --models nvidia-nemotron

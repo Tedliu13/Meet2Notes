@@ -1034,6 +1034,11 @@
   gap: 12px;
 }
 
+.minimal-segments .segment-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 46px;
+}
+
 .capture-modal-header {
   margin-bottom: 0;
 }

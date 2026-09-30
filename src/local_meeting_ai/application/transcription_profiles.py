@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from local_meeting_ai.application.transcription_config import (
@@ -318,6 +319,14 @@ class TranscriptionProfileCatalog:
             raise ValidationError(
                 f"{profile.display_name} cannot be used for {purpose} transcription"
             )
+        preferences = self.preferences.get_all()
+        if (preferences.get("audio_setup", {}).get("mode") == "auto"
+                and profile.engine == "faster-whisper"):
+            config = faster_whisper_config(preferences)
+            profile = replace(profile, device=str(config["device"]),
+                              compute_type=str(config["compute_type"]),
+                              device_index=int(config["device_index"]),
+                              cpu_threads=int(config["cpu_threads"]))
         return profile
 
 

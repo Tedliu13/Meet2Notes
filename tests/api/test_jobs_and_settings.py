@@ -369,17 +369,23 @@ def test_summary_model_catalog_and_litellm_preferences(
     assert catalog.status_code == 200
     models = catalog.json()
     assert [item["id"] for item in models] == [
+        "bonsai-27b-1bit",
+        "bonsai-27b-ternary",
         "lfm2.5-1.2b-q4",
         "qwen3-0.6b",
         "qwen3-1.7b",
         "custom-gguf",
         "litellm-custom",
+        "ollama",
     ]
-    assert models[0]["download_size"] == "731 MB"
-    assert models[1]["download_size"] == "639 MB"
-    assert models[2]["download_size"] == "1.83 GB"
-    assert models[3]["external_file"] is True
-    assert models[4]["managed"] is False
+    by_id = {item["id"]: item for item in models}
+    assert by_id["lfm2.5-1.2b-q4"]["download_size"] == "731 MB"
+    assert by_id["qwen3-0.6b"]["download_size"] == "639 MB"
+    assert by_id["qwen3-1.7b"]["download_size"] == "1.83 GB"
+    assert by_id["custom-gguf"]["external_file"] is True
+    assert by_id["litellm-custom"]["managed"] is False
+    assert by_id["bonsai-27b-1bit"]["context_length"] == 8192
+    assert by_id["bonsai-27b-ternary"]["preload_on_start"] is False
 
     custom_model = tmp_path / "downloaded-model.gguf"
     custom_model.write_bytes(b"GGUF test placeholder")

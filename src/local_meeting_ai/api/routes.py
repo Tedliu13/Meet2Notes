@@ -202,6 +202,24 @@ async def search_rag(
     )
 
 
+@router.post("/prompt/stream")
+async def stream_prompt_meetings(
+    payload: PromptRequest,
+    container: ContainerDependency,
+) -> StreamingResponse:
+    from .answer_stream import answer_stream
+
+    return answer_stream(lambda progress, cancelled: container.prompt_service.ask(
+        payload.question,
+        meeting_id=payload.meeting_id,
+        use_rag=payload.use_rag,
+        history=[turn.model_dump() for turn in payload.history],
+        attachments=[attachment.model_dump() for attachment in payload.attachments],
+        progress=progress,
+        is_cancelled=cancelled,
+    ))
+
+
 @router.post("/prompt")
 async def prompt_meetings(
     payload: PromptRequest,
@@ -986,6 +1004,13 @@ def pytorch_cuda_runtime(container: ContainerDependency) -> dict[str, Any]:
     return container.pytorch_cuda.status()
 
 
+@router.post("/runtimes/linux-cuda/install")
+async def install_linux_cuda_runtime() -> dict[str, Any]:
+    from local_meeting_ai.infrastructure.linux_cuda import repair_linux_cuda
+
+    return await repair_linux_cuda()
+
+
 @router.post("/runtimes/pytorch-cuda/install")
 async def install_pytorch_cuda_runtime(container: ContainerDependency) -> dict[str, Any]:
     """Replace CPU-only PyTorch with the CUDA wheel inside Meet2Notes' .venv."""
@@ -1085,6 +1110,8 @@ async def prepare_summary_engine(
         )
         if model is None:
             raise ValidationError("The requested local AI model is unavailable")
+        if config.get("profile_id") != profile_id and model.get("context_length"):
+            config["context_length"] = model["context_length"]
         config.update(
             {
                 "engine": model.get("engine", "llama-cpp"),
@@ -1109,6 +1136,15 @@ async def prepare_summary_engine(
     )
     logger.info("Local summary engine is ready")
     return container.summary_engine.capability()
+
+
+@router.get("/runtimes/ollama")
+async def ollama_runtime(
+    base_url: str | None = Query(default=None, max_length=500),
+) -> dict[str, Any]:
+    from local_meeting_ai.infrastructure.ollama import discover_ollama
+
+    return await discover_ollama(base_url)
 
 
 @router.get("/models/summary")
@@ -1488,6 +1524,34 @@ async def discard_capture(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.get("/engines/audio/recommendation")
+async def audio_hardware_recommendation(container: ContainerDependency) -> dict[str, Any]:
+    from local_meeting_ai.application.audio_setup import audio_recommendation
+
+    recommendation = await asyncio.to_thread(audio_recommendation)
+    saved = container.preferences.get_all()
+    return {"recommendation": recommendation.as_dict(),
+            "current": saved.get("audio_setup", {"mode": "custom"}),
+            "automatic_model_memory": saved.get("automatic_model_memory", False)}
+
+
+@router.post("/engines/audio/automatic")
+async def install_automatic_audio(container: ContainerDependency) -> dict[str, Any]:
+    from local_meeting_ai.application.audio_setup import install_audio_bundle
+
+    if container.capture_service.status() or container.jobs.list(active_only=True, limit=1):
+        raise ValidationError("Wait for active jobs to finish before changing audio profiles")
+    return await install_audio_bundle(container.paths.models, container.preferences,
+                                      replace_existing=True)
+
+
+@router.post("/engines/audio/custom")
+def use_custom_audio(container: ContainerDependency) -> dict[str, Any]:
+    saved = container.preferences.get_all().get("audio_setup", {})
+    container.preferences.update({"audio_setup": {**saved, "mode": "custom"}})
+    return {"mode": "custom"}
+
+
 @router.get("/settings", response_model=PreferenceResponse)
 def get_settings(container: ContainerDependency) -> PreferenceResponse:
     return _preference_response(container)
@@ -1508,6 +1572,12 @@ async def update_settings(
     if "models_directory" in values:
         values["models_directory"] = _validate_models_directory(values["models_directory"])
     _validate_provider_preferences(container, values)
+    if {"faster_whisper", "diarization", "live_transcription_profile",
+        "final_transcription_profile", "live_transcription_engine",
+        "final_transcription_engine"} & values.keys():
+        audio_setup = container.preferences.get_all().get("audio_setup")
+        if isinstance(audio_setup, dict):
+            values["audio_setup"] = {**audio_setup, "mode": "custom"}
     updated = container.preferences.update(values)
     if values:
         logger.info("Settings updated: %s", _setting_change_summary(values))
@@ -1567,6 +1637,7 @@ async def update_settings(
         if (
             config["provider"] == "local"
             and config["keep_model_loaded"]
+            and config.get("preload_on_start", True)
             and selected_summary_installed
         ):
             _track_background_task(
@@ -1577,7 +1648,10 @@ async def update_settings(
                 ),
                 "reload-summary-engine",
             )
-        elif config["provider"] != "local" or not config["keep_model_loaded"]:
+        elif (
+            config["provider"] != "local" or not config["keep_model_loaded"]
+            or not config.get("preload_on_start", True)
+        ):
             container.summary_engine.unload()
     if "rag" in values:
         config = configured_values(container.preferences, "rag", RAG_DEFAULTS)

@@ -1,5 +1,10 @@
 # README demo
 
+`meet2notes-bonsai-performance.png` is the 1920×1080 title card from the
+[Bonsai performance demo](https://www.youtube.com/watch?v=pDUrVM5XTZw). The README
+links this local preview to YouTube; no MP4 or original debate recording is bundled
+in the repository. See [measurement details](../performance-demo.md).
+
 `meet2notes-demo.gif` is a looping animation of the real local application.
 `meet2notes-demo.png` is its static first frame.
 
