@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import math
@@ -27,6 +28,12 @@ from local_meeting_ai.infrastructure.database.repositories import (
     TranscriptionRepository,
 )
 from local_meeting_ai.infrastructure.jobs import JobContext, LocalJobQueue
+from local_meeting_ai.infrastructure.llm_context import (
+    automatic_context,
+    discover_context,
+    remote_context,
+    size_context,
+)
 
 from .ai_services import SUMMARY_DEFAULTS, configured_values
 from .rag_vector_store import RagVectorStoreGateway
@@ -739,26 +746,17 @@ class PromptService:
         attachment_blocks, attached, attachment_tokens = self._attachment_context(
             attachments or [], meeting_id=meeting_id
         )
-        context_length = int(config.get("context_length", 16384))
-        if (
-            config.get("provider", "local") == "local"
-            and config.get("profile_id") in {"bonsai-27b-1bit", "bonsai-27b-ternary"}
-            and config.get("bonsai_auto_context", True)
-        ):
-            # Reserve space for bounded history, chat framing and output as well
-            # as the complete documents. Grow by powers of two, never beyond
-            # the model's trained window. Do not truncate attached evidence.
-            history_estimate = min(
-                8192, sum(_estimated_tokens(turn["content"]) + 12 for turn in history[-20:])
-            )
-            required = (
-                attachment_tokens + history_estimate
-                + int(config.get("max_output_tokens", 1024))
-                + _estimated_tokens(str(config.get("system_prompt", "")) + question) + 1024
-            )
-            while context_length < 262144 and required > int(context_length * 0.9):
-                context_length = min(262144, context_length * 2)
-            config["context_length"] = context_length
+        config = await asyncio.to_thread(discover_context, config)
+        history_estimate = min(
+            8192, sum(_estimated_tokens(turn["content"]) + 12 for turn in history[-20:])
+        )
+        required = (
+            attachment_tokens + history_estimate
+            + int(config.get("max_output_tokens", 1024))
+            + _estimated_tokens(str(config.get("system_prompt", "")) + question) + 2048
+        )
+        context_length = size_context(config, required)
+        config["context_length"] = context_length
         output_tokens = min(
             int(config.get("max_output_tokens", 1024)), context_length // 2
         )
@@ -866,6 +864,7 @@ class PromptService:
             "scope": "rag" if use_rag else ("meeting" if meeting_id else "model"),
             "attachments": attached,
             "context_usage": {
+                "automatic_remote_budget": automatic_context(config) and remote_context(config),
                 "context_window_tokens": context_length,
                 "input_budget_tokens": input_budget,
                 "history_tokens": history_tokens,

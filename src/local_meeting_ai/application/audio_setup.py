@@ -7,6 +7,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from local_meeting_ai.adapters.diarization.nemotron3 import Nemotron3DiarizationEngine
+from local_meeting_ai.adapters.diarization.profile_matching import SherpaOnnxSpeakerProfileMatcher
 from local_meeting_ai.adapters.diarization.sherpa_onnx import SherpaOnnxDiarizationEngine
 from local_meeting_ai.adapters.transcription.faster_whisper import _detect_runtime_capability
 from local_meeting_ai.application.transcription_config import FASTER_WHISPER_MODEL_REPOSITORIES
@@ -67,6 +69,17 @@ async def install_audio_bundle(
         _installation_lock.release()
 
 
+async def download_default_diarization(models_dir: Path) -> None:
+    engine = Nemotron3DiarizationEngine(models_dir)
+    matcher = SherpaOnnxSpeakerProfileMatcher(models_dir)
+    try:
+        await engine.prepare({}, allow_model_download=True)
+        await matcher.prepare({"embedding_model": "3d-speaker"}, allow_model_download=True)
+    finally:
+        engine.shutdown()
+        matcher.shutdown()
+
+
 async def _install_audio_bundle(
     models_dir: Path, preferences: SettingsRepository, *, backend: str,
     replace_existing: bool,
@@ -83,7 +96,7 @@ async def _install_audio_bundle(
     logger.info("Automatic audio profile: %s · %s", recommendation.tier, recommendation.reason)
     for model in dict.fromkeys((recommendation.live_model, recommendation.final_model)):
         await asyncio.to_thread(download_whisper, models_dir, model)
-    await asyncio.to_thread(download_sherpa, models_dir)
+    await download_default_diarization(models_dir)
     # Do not overwrite choices changed while the download was in progress.
     current = preferences.get_all()
     if any(current.get(key) != before.get(key) for key in (*keys, "automatic_model_memory")):

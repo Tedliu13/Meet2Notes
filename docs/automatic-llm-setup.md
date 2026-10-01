@@ -1,11 +1,18 @@
 # Automatic local LLM setup
 
+Bonsai 8B 1-bit is also available explicitly in Settings or with
+`--llm-profile bonsai-8b` (`install.ps1 -LlmProfile bonsai-8b` on Windows).
+It starts at 8,192 tokens and supports at most 65,536 including the response.
+Its 1.16 GB GGUF uses the same verified native runtime; Ollama is not required.
+For 4 GB NVIDIA laptops start at 8K. Automatic selection covers compatible NVIDIA GPUs with 3–7 GB VRAM; see [measured results and limitations](bonsai-8b-validation.md).
+
 Windows `install.ps1` / `install-update.bat`, Linux/macOS `install.sh`, Pinokio,
 and `meet2notes-models` use the same recommendation code. It runs `nvidia-smi`
 and reads total RAM; it does not import a model or benchmark inference.
 
 | Hardware for a fresh installation | Selected LLM | Initial context |
 |---|---|---:|
+| Compatible NVIDIA GPU, 3–7 GB VRAM | Bonsai 8B Q1_0 (1-bit) | 8,192 tokens |
 | Compatible NVIDIA GPU, 8–15 GB VRAM | Bonsai 27B Q1_0 (1-bit) | 8,192 tokens |
 | Compatible NVIDIA GPU, 16+ GB VRAM | Ternary Bonsai 27B PQ2_0 | 16,384 tokens |
 | CPU, smaller GPU, unsupported/unknown configuration | LFM2.5 1.2B Q4 | 16,384 tokens |
@@ -50,7 +57,7 @@ Live Assistant provider is left alone; `--models summary` manages only the main 
 
 Allow roughly 8 GB free disk for 1-bit or 12 GB for Ternary, including runtime
 extraction overhead. Existing verified GGUFs are reused. Interrupted downloads
-are removed and can be retried. The two Bonsai profiles share their pinned runtime.
+are removed and can be retried. The Bonsai profiles share their pinned runtime.
 Removing a model in Settings removes its GGUF and releases it from memory; the
 shared runtime remains for the other profile and future reinstalls.
 

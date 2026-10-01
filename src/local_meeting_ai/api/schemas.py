@@ -150,7 +150,9 @@ class SummaryEnginePreference(BaseModel):
         default="MEET2NOTES_AI_API_KEY",
         pattern=r"^[A-Z][A-Z0-9_]{0,127}$",
     )
-    context_length: int = Field(default=16384, ge=2048, le=262144)
+    context_length: int = Field(default=16384, ge=2048, le=2097152)
+    auto_context: bool | None = None
+    model_context_limit: int | None = Field(default=None, ge=1024, le=2097152)
     bonsai_auto_context: bool = True
     batch_size: int = Field(default=512, ge=32, le=4096)
     micro_batch_size: int = Field(default=128, ge=16, le=4096)
@@ -211,7 +213,7 @@ class LiveAssistantPreference(SummaryEnginePreference):
     auto_start: bool = True
     behavior_mode: Literal["questions", "triggers", "continuous"] = "questions"
     provider: Literal["local", "litellm"] = "local"
-    context_length: int = Field(default=16384, ge=2048, le=131072)
+    context_length: int = Field(default=16384, ge=2048, le=2097152)
     max_output_tokens: int = Field(default=1024, ge=128, le=8192)
     preload_on_start: bool = False
     system_prompt: str = Field(

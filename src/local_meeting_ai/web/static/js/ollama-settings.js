@@ -74,7 +74,7 @@
     const model = models.find((item) => item.name === select.value);
     const context = document.querySelector("#ai-context-length");
     if (model?.context_length >= 2048) {
-      context.value = Math.min(Number(context.value), model.context_length, 131072);
+      context.value = Math.min(Number(context.value), model.context_length);
     }
     showModel();
   });
@@ -98,10 +98,10 @@
       if (!model || select.disabled || url.value.trim() !== verifiedUrl) {
         throw new Error(t("ollama.select_required"));
       }
-      if (model.context_length && Number(document.querySelector("#ai-context-length").value) > model.context_length) {
+      if (!document.querySelector("#ai-bonsai-auto-context").checked && model.context_length && Number(document.querySelector("#ai-context-length").value) > model.context_length) {
         throw new Error(t("ollama.context_exceeded", { count: model.context_length }));
       }
-      return { model: `ollama_chat/${model.name}`, base_url: verifiedUrl };
+      return { model: `ollama_chat/${model.name}`, base_url: verifiedUrl, model_context_limit: model.context_length || null };
     },
   };
 })();

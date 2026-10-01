@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from local_meeting_ai.adapters.diarization.diarize_cpu import DiarizeCpuEngine
+from local_meeting_ai.adapters.diarization.nemotron3 import Nemotron3DiarizationEngine
 from local_meeting_ai.adapters.diarization.pyannote_community import (
     PyannoteCommunityDiarizationEngine,
 )
@@ -41,7 +42,9 @@ from local_meeting_ai.paths import AppPaths
 logger = logging.getLogger("meet2notes.diarization_evaluator")
 
 PROVIDERS = ("cpu", "cuda")
-ENGINE_CHOICES = ("sherpa-onnx", "diarize", "pyannote-community-1")
+ENGINE_CHOICES = (
+    "sherpa-onnx", "diarize", "pyannote-community-1", "nvidia-nemotron-3-diarization",
+)
 
 
 class EvaluationStore:
@@ -191,6 +194,8 @@ class DiarizationEvaluationOrchestrator:
             return SherpaOnnxDiarizationEngine(self.models_dir)
         if engine_id == "diarize":
             return DiarizeCpuEngine(self.models_dir)
+        if engine_id == "nvidia-nemotron-3-diarization":
+            return Nemotron3DiarizationEngine(self.models_dir)
         if engine_id == "pyannote-community-1":
             return PyannoteCommunityDiarizationEngine(
                 self.models_dir,

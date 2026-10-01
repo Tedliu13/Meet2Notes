@@ -369,6 +369,7 @@ def test_summary_model_catalog_and_litellm_preferences(
     assert catalog.status_code == 200
     models = catalog.json()
     assert [item["id"] for item in models] == [
+        "bonsai-8b-1bit",
         "bonsai-27b-1bit",
         "bonsai-27b-ternary",
         "lfm2.5-1.2b-q4",

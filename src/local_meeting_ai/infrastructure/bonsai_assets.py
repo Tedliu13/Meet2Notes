@@ -20,6 +20,17 @@ logger = logging.getLogger(__name__)
 RELEASE = "prism-b10743-adfffbe"
 BASE_URL = f"https://github.com/PrismML-Eng/llama.cpp/releases/download/{RELEASE}"
 PROFILES: dict[str, dict[str, Any]] = {
+    "bonsai-8b-1bit": {
+        "id": "bonsai-8b-1bit", "display_name": "Bonsai 8B · 1-bit",
+        "description": "Compact option for NVIDIA GPUs with 4 GB VRAM. Start with 8K context.",
+        "repository": "prism-ml/Bonsai-8B-gguf",
+        "revision": "48516770dd04643643e9f9019a2a349cf26c5dbd",
+        "model_file": "Bonsai-8B-Q1_0.gguf", "download_size": "1.16 GB + runtime",
+        "size": 1158654496,
+        "sha256": "284a335aa3fb2ced3b1b01fcb40b08aa783e3b70832767f0dd2e3fdfa134bd54",
+        "quantization": "Q1_0", "context_length": 8192, "max_context_length": 65536,
+        "preload_on_start": False, "native_runtime": True,
+    },
     "bonsai-27b-1bit": {
         "id": "bonsai-27b-1bit", "display_name": "Bonsai 27B · 1-bit",
         "description": "For compatible NVIDIA GPUs with 8+ GB VRAM. Managed Prism runtime.",

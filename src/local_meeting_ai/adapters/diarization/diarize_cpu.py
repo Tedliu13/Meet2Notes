@@ -40,7 +40,7 @@ class DiarizeCpuEngine:
         self.cache_dir = models_dir / "diarization" / "diarize"
         self._executor = ThreadPoolExecutor(
             max_workers=1,
-            thread_name_prefix="diarize-cpu",
+            thread_name_prefix=self.name,
         )
         self._process: subprocess.Popen[str] | None = None
         self._state_lock = threading.Lock()
@@ -114,6 +114,7 @@ class DiarizeCpuEngine:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 process.kill()
+                process.wait(timeout=5)
         with self._state_lock:
             if not self._active_requests and not self._shutdown:
                 self._state = "idle"
@@ -132,7 +133,7 @@ class DiarizeCpuEngine:
     async def _submit(self, function: Any, *args: Any) -> Any:
         with self._state_lock:
             if self._shutdown:
-                raise CapabilityUnavailableError("The diarize CPU worker is shutting down")
+                raise CapabilityUnavailableError(f"The {self.name} worker is shutting down")
         return await asyncio.wrap_future(self._executor.submit(function, *args))
 
     def _prepare_sync(self, config: dict[str, Any], allow_model_download: bool) -> None:
@@ -288,7 +289,7 @@ class DiarizeCpuEngine:
     ) -> dict[str, Any]:
         process = self._process
         if process is None or process.stdin is None or process.stdout is None:
-            raise CapabilityUnavailableError("The diarize CPU worker did not start")
+            raise CapabilityUnavailableError(f"The {self.name} worker did not start")
         process.stdin.write(json.dumps(request) + "\n")
         process.stdin.flush()
         lines: queue.Queue[str | None] = queue.Queue()
@@ -302,16 +303,19 @@ class DiarizeCpuEngine:
                         payload = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    if isinstance(payload, dict) and "ok" in payload:
+                    if isinstance(payload, dict) and "progress" in payload:
+                        lines.put(line)
+                    elif isinstance(payload, dict) and "ok" in payload:
                         lines.put(line)
                         return
             finally:
                 lines.put(None)
 
-        reader = threading.Thread(target=read_response, daemon=True, name="diarize-response")
+        reader = threading.Thread(target=read_response, daemon=True, name=f"{self.name}-response")
         reader.start()
         started = time.monotonic()
         last_notice = started
+        last_progress = 0.05
         # Long meetings can legitimately take more than an hour on a slow CPU.
         deadline = started + 24 * 60 * 60
         while time.monotonic() < deadline:
@@ -322,8 +326,11 @@ class DiarizeCpuEngine:
             now = time.monotonic()
             if progress is not None and now - last_notice >= 15:
                 elapsed = int(now - started)
-                progress(0.05, f"CPU speaker analysis still running · {elapsed // 60}m "
-                         f"{elapsed % 60:02d}s elapsed · percentage unavailable")
+                progress(
+                    last_progress,
+                    f"{self.name} speaker analysis still running · {elapsed // 60}m "
+                    f"{elapsed % 60:02d}s elapsed · percentage unavailable",
+                )
                 last_notice = now
             try:
                 line = lines.get(timeout=0.5)
@@ -335,14 +342,20 @@ class DiarizeCpuEngine:
                 except json.JSONDecodeError:
                     logger.warning("Ignoring unexpected diarize worker output: %s", line.strip())
                     continue
+                if isinstance(response, dict) and "progress" in response:
+                    last_progress = max(last_progress, min(0.97, float(response["progress"])))
+                    if progress is not None:
+                        progress(last_progress, str(response.get("message", "Analyzing speakers")))
+                    last_notice = time.monotonic()
+                    continue
                 return response if isinstance(response, dict) else {}
             if line is None:
                 raise CapabilityUnavailableError(
-                    "The diarize CPU worker stopped unexpectedly. See the application log."
+                    f"The {self.name} worker stopped unexpectedly. See the application log."
                 )
         self.unload()
         reader.join(timeout=2)
-        raise CapabilityUnavailableError("The diarize CPU worker timed out after 24 hours")
+        raise CapabilityUnavailableError(f"The {self.name} worker timed out after 24 hours")
 
     def _runtime_python(self) -> Path:
         return self.runtime_dir / (
@@ -365,18 +378,18 @@ class DiarizeCpuEngine:
         removed_runtime = remove_managed_model_tree(
             root=self.runtime_dir.parent,
             target=self.runtime_dir,
-            label="diarize CPU runtime",
+            label=f"{self.name} runtime",
         )
         remove_managed_model_tree(
             root=self.cache_dir.parent,
             target=self.cache_dir,
-            label="diarize CPU cache",
+            label=f"{self.name} cache",
         )
         if not removed_runtime:
             raise CapabilityUnavailableError(
-                "The isolated diarize CPU runtime is not installed locally"
+                f"The isolated {self.name} runtime is not installed locally"
             )
-        logger.info("Removed isolated diarize CPU runtime from %s", self.runtime_dir)
+        logger.info("Removed isolated %s runtime from %s", self.name, self.runtime_dir)
 
     def _worker_running(self) -> bool:
         return self._process is not None and self._process.poll() is None

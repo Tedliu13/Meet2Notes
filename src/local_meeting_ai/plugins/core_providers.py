@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from local_meeting_ai.adapters.diarization.diarize_cpu import DiarizeCpuEngine
+from local_meeting_ai.adapters.diarization.nemotron3 import Nemotron3DiarizationEngine
 from local_meeting_ai.adapters.diarization.pyannote_community import (
     PyannoteCommunityDiarizationEngine,
 )
@@ -100,6 +101,16 @@ def register_core_providers(
             context.models_dir,
             access_token=settings.pyannote_token,
         ),
+    )
+    registry.register_core(
+        _descriptor(
+            "nvidia-nemotron-3-diarization",
+            "diarization",
+            "NVIDIA Nemotron 3 Diarization",
+            "Local streaming speaker analysis for up to eight speakers in a private runtime.",
+            outputs=("speaker-turns",),
+        ),
+        lambda context: Nemotron3DiarizationEngine(context.models_dir),
     )
     registry.register_core(
         _descriptor(

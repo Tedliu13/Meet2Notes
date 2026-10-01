@@ -17,7 +17,7 @@
     <img alt="Platforms" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-supported-176BFF">
     <img alt="Local first" src="https://img.shields.io/badge/AI-local--first-16A085">
     <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-111827">
-    <img alt="Version 0.8.0" src="https://img.shields.io/badge/version-0.8.0-176BFF">
+    <img alt="Version 0.9.0" src="https://img.shields.io/badge/version-0.9.0-176BFF">
   </p>
 </div>
 
@@ -82,6 +82,50 @@ These are three short answers from one run, not a guarantee for every recording
 or GPU. First-text and total times are measured at the application server;
 generation speed is reported by the native runtime and excludes prompt processing.
 See the [measurement details](docs/performance-demo.md).
+
+## Meet2Notes 0.9: faster speaker recognition, flexible AI context
+
+Version **0.9.0** adds the following changes since 0.8.0:
+
+- **Nemotron 3 diarization is the fresh-install default**, on CPU or CUDA, with
+  a private runtime, up to eight speakers, bounded processing windows and
+  progress reporting. Existing installations retain their selected engine.
+- **Faster saved-voice matching:** persist embeddings for saved voices and
+  meeting speakers, invalidate them when inputs change, and compare cached
+  vectors without reloading the embedding model. Distributed speech samples
+  skip the first three seconds of long interventions and detected overlaps.
+  This reduces exposure to applause and interruptions; it does not detect all noise.
+- **Bonsai 8B 1-bit (1.16 GB)** joins the managed native models. Compatible
+  NVIDIA GPUs with 3–7 GB VRAM use it on fresh installations, starting at 8K
+  context with a 65,536-token model ceiling. The 8–15 GB and 16+ GB tiers retain
+  Bonsai 27B 1-bit and Ternary; CPU/unsupported systems retain LFM. Driver,
+  architecture and system RAM checks still apply.
+- **OpenAI, Claude and Gemini presets** in both AI Engine and Live Assistant,
+  alongside Custom model IDs and endpoints. LiteLLM 1.103.1 or newer is required.
+- **Automatic context across AI engines:** selected full attachments go to
+  remote APIs without a fixed 8K application ceiling. Local windows grow within
+  model limits and memory constraints; output length remains independently
+  configurable. Manual context limits remain available.
+- **Reusable notes/chat prefixes:** retain Bonsai cache reuse, support resident
+  llama.cpp reuse and Ollama context discovery, and send supported OpenAI/Claude
+  cache hints. Gemini uses implicit caching. Cache hits depend on provider rules,
+  prefix length and residency; live moving windows have different reuse limits.
+
+Real cache checks succeeded with Bonsai, OpenAI, Claude and Gemini. These are
+individual measurements, not guaranteed response times. The latest ITV matching
+check recognized 8/8 speakers in 7.87 seconds, or 0.098 seconds with cached
+embeddings; its saved voices came from the same recording.
+
+See [context and cache validation](docs/automatic-context-cache.md),
+[voice matching validation](docs/voice-sampling-validation.md),
+[Bonsai 8B measurements](docs/bonsai-8b-validation.md),
+[remote presets](docs/litellm-presets.md), and the
+[0.9.0 changelog](CHANGELOG.md#090---2026-10-01).
+
+**Updating:** stop the app, run the usual Windows or Pinokio updater, or update
+and rerun your Unix installer, then restart. Existing meetings, settings and
+model selections are preserved. Apply a new recommended profile explicitly in
+Settings if desired. See [safe updates](docs/updating.md).
 
 ## Meet2Notes 0.8: long conversations, local answers
 
@@ -424,14 +468,15 @@ the installed Windows runtime and reports actual readiness.
 
 ### Speaker diarization
 
-Sherpa-ONNX is the default. The Settings -> Speakers table also exposes the
+NVIDIA Nemotron 3 Diarization is the default (up to eight speakers). The Settings -> Speakers table also exposes the
 optional alternatives:
 
 | Engine | Device | Installation and use |
 |---|---|---|
-| Sherpa-ONNX | CPU, CUDA, CoreML when available | Lightweight default using local Pyannote segmentation and 3D-Speaker models |
+| Sherpa-ONNX | CPU, CUDA, CoreML when available | Lightweight alternative using local Pyannote segmentation and 3D-Speaker models |
 | Pyannote Community-1 | CPU or CUDA | Higher-accuracy gated Hugging Face model with exclusive diarization support |
 | `diarize` | CPU only | Runs in a private child virtual environment to avoid dependency conflicts |
+| NVIDIA Nemotron 3 Diarization | CPU or CUDA | Default 100M model, automatic detection of up to 8 speakers, continuous speaker cache and progress for long recordings |
 
 The basic options are speaker count (automatic or known), supported execution
 device, preload on startup, and saved-voice recognition. Thresholds, clustering,
@@ -439,7 +484,39 @@ segmentation, batching, and provider-specific parameters live under Advanced.
 
 Saved-voice matching is a separate shared component, not part of a diarizer.
 Consequently, existing WAV profiles can be matched after Sherpa-ONNX,
-Pyannote, or `diarize` produces the speaker turns.
+Pyannote, `diarize`, or Nemotron 3 produces the speaker turns. It extracts
+3D-Speaker or TitaNet embeddings from the saved WAV samples and each detected
+speaker, then compares normalized embeddings using cosine similarity. Voiceprints
+are cached locally beside their source WAVs, separately from Nemotron's speaker
+cache. A changed audio file, model/runtime version or diarization invalidates the
+relevant cached embeddings. Deleting a saved voice also deletes its voiceprint cache.
+
+Matching samples up to five distributed fragments (at most 30 seconds) per saved
+voice and meeting speaker, excluding overlapping speakers in the meeting. Uncertain
+matches can use five additional meeting fragments, capped at 60 seconds per speaker.
+Short, silent or heavily clipped samples are skipped. Cosine threshold, separation
+from the next candidate and agreement between fragments must all pass; ambiguous
+voices keep their speaker labels. The first run builds the cache. Repeated matching
+can compare cached vectors without loading the embedding model or reading PCM audio.
+Progress and cancellation remain available during extraction; logs include cache
+hits, processed audio duration and timings for saved voices, meeting speakers,
+model loading and comparisons.
+
+Install **NVIDIA Nemotron 3 Diarization** from **Settings → Speakers → Install**,
+then select it and choose CPU or CUDA. Its model is about 400 MB; a private Python
+runtime adds dependencies and reuses compatible packages from the application
+without upgrading them. The Transformers implementation is currently a pinned
+development revision, so this engine remains optional. Installation downloads
+the model; **Load** or the first diarization request loads it into memory.
+
+Nemotron detects speaker count automatically (maximum eight), so the manual
+speaker-count setting is disabled for this engine. Meetings with more speakers
+need another engine. Audio is read in bounded chunks with the speaker cache
+preserved across chunks and reset between recordings. Cancellation stops the
+worker, and the existing model-memory settings control unloading. Voice-profile
+matching uses Sherpa embeddings on CPU even when Nemotron runs on CUDA.
+See the [model card](https://huggingface.co/nvidia/Nemotron-3-Diarization)
+for model limitations and its NVIDIA OpenMDW 1.1 license.
 
 Pyannote Community-1 requires accepting the conditions on its
 [Hugging Face model page](https://huggingface.co/pyannote/speaker-diarization-community-1).
@@ -789,7 +866,7 @@ for the complete transaction and recovery model.
 
 ## Model installation and storage
 
-The default installer downloads the recommended live/final Faster Whisper bundle, Sherpa-ONNX diarization,
+The default installer downloads the recommended live/final Faster Whisper bundle, Nemotron 3 diarization,
 the shared saved-voice embedding model, and a local LLM selected for the hardware:
 Bonsai 27B 1-bit on compatible 8+ GB NVIDIA GPUs, Ternary on 16+ GB GPUs,
 or LFM2.5 1.2B Q4 elsewhere. Existing AI model selections are preserved on updates.

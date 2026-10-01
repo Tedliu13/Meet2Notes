@@ -6,6 +6,37 @@ from local_meeting_ai.adapters.summary import llama_cpp as adapter
 from local_meeting_ai.domain.errors import CapabilityUnavailableError
 
 
+def test_8b_runtime_clamps_oversized_context_and_uses_dense_cache_budget(tmp_path, monkeypatch):
+    attempts = []
+    budgets = []
+
+    class Model:
+        def __init__(self, directory, path, config):
+            attempts.append(dict(config))
+            if config.get("offload_kqv", True):
+                raise adapter.BonsaiMemoryError("GPU allocation failed")
+
+        def close(self):
+            pass
+
+    def fits(context, *, bytes_per_token):
+        budgets.append((context, bytes_per_token))
+        return True
+
+    monkeypatch.setattr(adapter, "BonsaiModel", Model)
+    monkeypatch.setattr(adapter, "host_cache_fits", fits)
+    engine = adapter.LlamaCppSummaryEngine(tmp_path)
+    try:
+        engine._get_model(tmp_path / "model.gguf", {
+            "profile_id": "bonsai-8b-1bit", "context_length": 262144,
+        })
+        assert [item["context_length"] for item in attempts] == [65536, 65536]
+        assert budgets == [(65536, 49152)]
+        assert attempts[-1]["offload_kqv"] is False
+    finally:
+        engine.shutdown()
+
+
 def test_auto_context_reuses_larger_runtime_and_reloads_for_growth_or_settings(
     tmp_path, monkeypatch,
 ):

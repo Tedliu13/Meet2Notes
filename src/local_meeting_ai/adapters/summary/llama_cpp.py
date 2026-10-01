@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from local_meeting_ai.adapters.litellm_compat import completion as litellm_completion
+from local_meeting_ai.adapters.prompt_cache import cache_arguments
 from local_meeting_ai.application.summary_templates import render_summary_template
 from local_meeting_ai.domain.entities import SummaryResult
 from local_meeting_ai.domain.errors import (
@@ -37,6 +38,15 @@ from local_meeting_ai.infrastructure.bonsai_runtime import (
     BonsaiMemoryError,
     BonsaiModel,
     host_cache_fits,
+)
+from local_meeting_ai.infrastructure.llm_context import (
+    automatic_context,
+    discover_context,
+    remote_context,
+    size_context,
+)
+from local_meeting_ai.infrastructure.llm_context import (
+    context_limit as model_context_limit,
 )
 
 from .credentials import get_litellm_api_key, secure_storage_status
@@ -322,12 +332,16 @@ class LlamaCppSummaryEngine:
             model = None
             # Per-request sizing must also cover queued AI notes, speaker notes
             # and plugin analyses, not only the chat application's preflight.
-            config = dict(config)
-            context_length = max(1024, int(config.get("context_length", 16384)))
+            config = discover_context(dict(config))
+            context_limit = model_context_limit(config)
+            context_length = size_context(config, 0)
+            config["context_length"] = context_length
             maximum_tokens = min(
                 max(128, int(config.get("max_output_tokens", 1024))),
                 max(128, context_length // 2),
             )
+            if automatic_context(config) and remote_context(config):
+                maximum_tokens = max(128, int(config.get("max_output_tokens", 1024)))
             messages = self._summary_messages(
                 system_prompt,
                 task_prompt,
@@ -338,13 +352,10 @@ class LlamaCppSummaryEngine:
                 messages = self._conversation_messages(
                     system_prompt, task_prompt, transcript, config,
                 )
-            automatic = (
-                not remote and config.get("profile_id") in BONSAI_PROFILES
-                and config.get("bonsai_auto_context", True)
-            )
+            automatic = automatic_context(config)
+            unlimited_remote = automatic and remote_context(config)
             if (
-                not remote and config.get("profile_id") in BONSAI_PROFILES
-                and config.get("bonsai_document_prefix") and "prompt_turns" not in config
+                config.get("bonsai_document_prefix") and "prompt_turns" not in config
             ):
                 messages = [
                     {"role": "system", "content": evidence_system_message(
@@ -353,10 +364,9 @@ class LlamaCppSummaryEngine:
                     {"role": "user", "content": f"{system_prompt}\n\n{task_prompt}"},
                 ]
             if automatic:
-                while context_length < 262144 and not self._fits_context(
-                    messages, maximum_tokens, context_length,
-                ):
-                    context_length = min(262144, context_length * 2)
+                context_length = size_context(
+                    config, self._estimate_message_tokens(messages) + maximum_tokens + 256,
+                )
                 config["context_length"] = context_length
             if not remote:
                 on_phase = getattr(progress, "on_phase", None)
@@ -364,23 +374,32 @@ class LlamaCppSummaryEngine:
                     on_phase("loading_model")
                 path = self._resolve_model_path(config, False)
                 model = self._get_model(path, config)
+                if config.get("profile_id") == "custom-gguf":
+                    metadata = getattr(model, "metadata", {})
+                    limits = [int(v) for k, v in metadata.items()
+                              if k.endswith(".context_length") and str(v).isdigit()]
+                    if limits:
+                        context_limit = min(limits)
+                        config["model_context_limit"] = context_limit
                 # A real tokenizer can require more than the character estimate.
-                while automatic and context_length < 262144 and not self._fits_context(
+                while automatic and context_length < context_limit and not self._fits_context(
                     messages, maximum_tokens, context_length, model,
                 ):
-                    context_length = min(262144, context_length * 2)
+                    context_length = min(context_limit, context_length * 2)
                     config["context_length"] = context_length
                     model = self._get_model(path, config)
             if automatic:
-                progress(0.1, f"Bonsai context window: {context_length:,} tokens")
-            if "prompt_turns" in config and not self._fits_context(
+                progress(0.1, f"Request context budget: {context_length:,} tokens")
+            if "prompt_turns" in config and not unlimited_remote and not self._fits_context(
                 messages, maximum_tokens, context_length, model,
             ):
                 raise CapabilityUnavailableError(
                     "The meeting context and conversation exceed the model context window. "
                     "Remove an attached document or start a new conversation."
                 )
-            if self._fits_context(messages, maximum_tokens, context_length, model):
+            if unlimited_remote or self._fits_context(
+                messages, maximum_tokens, context_length, model,
+            ):
                 progress(
                     0.2,
                     "Generating the summary through LiteLLM"
@@ -742,23 +761,19 @@ class LlamaCppSummaryEngine:
                 f"CURRENT QUESTION:\n{config['prompt_question']}"
             ),
         })
-        if (
-            config.get("provider", "local") == "local"
-            and config.get("profile_id") in BONSAI_PROFILES
-        ):
-            # Reuse a stable document prefix. Putting history before the evidence
-            # changes the prefix on every turn and invalidates its KV cache.
-            if config.get("bonsai_document_prefix"):
-                instructions = messages[0]["content"]
-                messages[0]["content"] = evidence_system_message(
-                    str(config["bonsai_document_prefix"]),
-                )
-                messages[-1]["content"] = (
-                    f"{instructions}\n\nCURRENT QUESTION:\n{config['prompt_question']}"
-                )
-            else:
-                messages[0]["content"] += f"\n\n<meeting_evidence>\n{context}\n</meeting_evidence>"
-                messages[-1]["content"] = f"CURRENT QUESTION:\n{config['prompt_question']}"
+        # Reuse a stable document prefix. Putting history before the evidence
+        # changes the prefix on every turn and invalidates its KV cache.
+        if config.get("bonsai_document_prefix"):
+            instructions = messages[0]["content"]
+            messages[0]["content"] = evidence_system_message(
+                str(config["bonsai_document_prefix"]),
+            )
+            messages[-1]["content"] = (
+                f"{instructions}\n\nCURRENT QUESTION:\n{config['prompt_question']}"
+            )
+        else:
+            messages[0]["content"] += f"\n\n<meeting_evidence>\n{context}\n</meeting_evidence>"
+            messages[-1]["content"] = f"CURRENT QUESTION:\n{config['prompt_question']}"
         return messages
 
     @staticmethod
@@ -962,6 +977,11 @@ class LlamaCppSummaryEngine:
 
     def _get_model(self, path: Path, config: dict[str, Any]) -> Any:
         native = config.get("profile_id") in BONSAI_PROFILES
+        if native:
+            limit = int(BONSAI_PROFILES[str(config["profile_id"])].get(
+                "max_context_length", 262144))
+            config = {**config, "context_length": min(
+                int(config.get("context_length", 8192)), limit)}
         if not native and importlib.util.find_spec("llama_cpp") is None:
             raise CapabilityUnavailableError(
                 'llama-cpp-python is not installed. Run: python -m pip install -e ".[summaries]"'
@@ -986,9 +1006,8 @@ class LlamaCppSummaryEngine:
         )
         with self._model_lock:
             if (
-                native and config.get("bonsai_auto_context", True)
-                and self._model_key and isinstance(self._model, BonsaiModel)
-                and self._model.is_alive()
+                automatic_context(config) and self._model_key and self._model is not None
+                and (not isinstance(self._model, BonsaiModel) or self._model.is_alive())
                 and self._model_key[0] == key[0]
                 and self._model_key[2:] == key[2:]
                 and int(self._model_key[1]) >= int(key[1])
@@ -1007,7 +1026,12 @@ class LlamaCppSummaryEngine:
                 except BonsaiMemoryError:
                     if not config.get("offload_kqv", True):
                         raise
-                    if not host_cache_fits(int(config.get("context_length", 8192))):
+                    context = int(config.get("context_length", 8192))
+                    # Dense Qwen3-8B has more KV bytes/token than hybrid Bonsai 27B.
+                    fits = (host_cache_fits(context, bytes_per_token=49152)
+                            if config.get("profile_id") == "bonsai-8b-1bit"
+                            else host_cache_fits(context))
+                    if not fits:
                         raise CapabilityUnavailableError(
                             "The complete meeting needs more context memory than is available. "
                             "Close other GPU/RAM applications, or remove the transcript attachment "
@@ -1023,6 +1047,14 @@ class LlamaCppSummaryEngine:
                     self._model = BonsaiModel(self.models_dir, path, host_config)
                 self._model_key = key
                 return self._model
+            # Reserve headroom before allocating a larger standard GGUF KV cache.
+            if automatic_context(config) and int(config.get("context_length", 16384)) > 16384:
+                kv_bytes = 49152 if config.get("profile_id") == "lfm2.5-1.2b-q4" else 131072
+                if not host_cache_fits(int(config["context_length"]), bytes_per_token=kv_bytes):
+                    raise CapabilityUnavailableError(
+                        "Not enough free memory to grow the local context safely. "
+                        "Close other models, use RAG excerpts, or choose a remote model."
+                    )
             llama_cpp = importlib.import_module("llama_cpp")
             split_modes = {
                 "none": llama_cpp.LLAMA_SPLIT_MODE_NONE,
@@ -1111,6 +1143,14 @@ class LlamaCppSummaryEngine:
         logger.info("Saved local summary model %s", downloaded)
         return Path(downloaded)
 
+    @staticmethod
+    def _log_cache_usage(usage: dict[str, Any]) -> None:
+        cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+        details = usage.get("prompt_tokens_details") or {}
+        created = usage.get("cache_creation_input_tokens", details.get("cache_write_tokens"))
+        if cached is not None or created is not None:
+            logger.info("LLM prompt cache: reused=%s tokens, written=%s tokens", cached, created)
+
     def _litellm_completion(
         self,
         messages: list[dict[str, str]],
@@ -1155,6 +1195,7 @@ class LlamaCppSummaryEngine:
                 arguments["think"] = False
         if key:
             arguments["api_key"] = key
+        arguments = cache_arguments(litellm, arguments)
         if on_token:
             arguments["stream"] = True
         try:
@@ -1174,6 +1215,7 @@ class LlamaCppSummaryEngine:
             if hasattr(response, "model_dump"):
                 response = response.model_dump()
             if isinstance(response, dict):
+                self._log_cache_usage(response.get("usage") or {})
                 return response
             parts: list[str] = []
             usage: dict[str, Any] = {}
@@ -1193,10 +1235,23 @@ class LlamaCppSummaryEngine:
                 close = getattr(response, "close", None)
                 if close:
                     close()
+            self._log_cache_usage(usage)
             return {"choices": [{"message": {"content": "".join(parts)}}], "usage": usage}
         except JobCancelledError:
             raise
         except Exception as error:
+            message = str(error).lower()
+            if type(error).__name__ == "ContextWindowExceededError" or any(
+                term in message for term in (
+                    "maximum context length", "context window exceeded", "context_length_exceeded",
+                    "input token count exceeds",
+                )
+            ):
+                raise CapabilityUnavailableError(
+                    "The model rejected this request because its context window is too small. "
+                    "Choose a model with a larger context or remove some attachments. "
+                    "The app has not silently shortened your attachments."
+                ) from error
             raise CapabilityUnavailableError(
                 f"LiteLLM could not complete the request: {error}"
             ) from error

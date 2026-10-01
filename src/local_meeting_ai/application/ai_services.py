@@ -9,6 +9,7 @@ from local_meeting_ai.domain.entities import Job, Summary, SummaryTemplate
 from local_meeting_ai.domain.enums import JobType
 from local_meeting_ai.domain.errors import (
     CapabilityUnavailableError,
+    JobCancelledError,
     NotFoundError,
     ValidationError,
 )
@@ -41,7 +42,7 @@ from .speaker_text import speaker_turn_text
 logger = logging.getLogger(__name__)
 
 DIARIZATION_DEFAULTS: dict[str, Any] = {
-    "engine": "sherpa-onnx",
+    "engine": "nvidia-nemotron-3-diarization",
     "segmentation_model": "pyannote-3.0",
     "embedding_model": "3d-speaker",
     "quantized_segmentation": True,
@@ -297,7 +298,13 @@ class DiarizationService:
                 turns,
                 profiles,
                 config,
+                progress=lambda value, message: self.jobs.update_progress(
+                    job.uuid, 0.91 + 0.025 * value, message,
+                ),
+                is_cancelled=is_cancelled,
             )
+        if is_cancelled():
+            raise JobCancelledError("Diarization was cancelled")
         await context.update(0.94, "Assigning speakers to transcript segments")
         assigned = self.transcriptions.assign_diarization(
             meeting_id=transcription.meeting_id,

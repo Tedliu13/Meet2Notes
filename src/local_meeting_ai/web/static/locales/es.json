@@ -1,11 +1,13 @@
 {
+  "settings.nemotron_diarization_description": "Análisis local de hablantes con una caché continua de voces para reuniones largas.",
+  "settings.nemotron_diarization_note": "Hasta 8 hablantes, detectados automáticamente. CPU o CUDA. Usa un entorno privado con una versión preliminar fijada. Compatible con el reconocimiento de voces guardadas.",
   "assistant.loading_model": "Preparando el modelo…",
   "assistant.reading_context": "Leyendo el contexto de la reunión… La primera consulta puede tardar más.",
   "assistant.reading_context_progress": "Procesando contexto: {processed} / {total} tokens…",
   "transcript.loading": "Cargando transcripción…",
   "transcript.loading_progress": "Mostrando transcripción: {loaded} / {total} segmentos…",
-  "settings.bonsai_auto_context": "Contexto automático de Bonsai",
-  "settings.bonsai_auto_context_help": "Solo Bonsai nativo. Amplía la ventana configurada según sea necesario, hasta 262.144 tokens incluyendo la respuesta. Mantén el modelo cargado para reutilizar su caché.",
+  "settings.bonsai_auto_context": "Contexto automático",
+  "settings.bonsai_auto_context_help": "Envía los adjuntos completos a las APIs remotas; amplía el contexto local dentro de sus límites de modelo y memoria. Los tokens de contexto son el tamaño inicial en automático y el límite en manual. Un prefijo estable favorece la caché cuando existe soporte; no garantiza aciertos.",
   "assistant.source_unverified": "Fuente no verificada",
   "assistant.source_transcript": "Transcripción",
   "assistant.source_notes": "Notas IA",
@@ -84,6 +86,12 @@
   "mcp.status_enabled": "Activado · los clientes de escritorio pueden usar las herramientas de solo lectura de Meet2Notes mientras la aplicación esté ejecutándose.",
   "mcp.title": "Clientes MCP de escritorio",
   "literal": {
+    "Automatic context": "Contexto automático",
+    "Choose a provider model or Custom. Use an API key for the selected provider.": "Elige un modelo del proveedor o Personalizado. Usa una clave API del proveedor seleccionado.",
+    "Model preset": "Modelo predefinido",
+    "Send complete attachments to remote models. Local windows grow within model and memory limits. The configured window is the starting size; disabling this option makes it a fixed limit.": "Envía los adjuntos completos a los modelos remotos. El contexto local crece dentro de los límites del modelo y la memoria. El valor configurado es el tamaño inicial; al desactivar esta opción se convierte en un límite fijo.",
+    "Size context for the request.": "Ajusta el contexto a la petición.",
+
     "Bonsai automatic context": "Contexto automático de Bonsai",
     "Native Bonsai only. Grow from the configured window as needed, up to 262,144 tokens including the answer. Keep the model loaded to reuse its cache.": "Solo Bonsai nativo. Amplía la ventana configurada según sea necesario, hasta 262.144 tokens incluyendo la respuesta. Mantén el modelo cargado para reutilizar su caché.",
     "Add or merge this JSON server entry into Claude Desktop’s configuration file.": "Añade o combina esta entrada JSON del servidor en el archivo de configuración de Claude Desktop.",
@@ -1533,8 +1541,10 @@
   "audio.custom": "Configuración personalizada",
   "audio.auto": "Automático",
   "audio.memory": "Liberar modelos inactivos entre fases de procesamiento",
-  "audio.plan": "Recomendado: {tier} · Directo: Whisper {live} · Final: Whisper {final} · {device} · Hablantes: Sherpa CPU. Modo actual: {mode}.",
+  "audio.plan": "Recomendado: {tier} · Directo: Whisper {live} · Final: Whisper {final} · {device} · Hablantes: Nemotron 3 ({device}). Modo actual: {mode}.",
   "audio.installing": "Descargando los modelos de audio recomendados. No se ejecuta inferencia; consulta los modelos en el registro de actividad.",
   "audio.installed": "Perfil de audio instalado y seleccionado.",
-  "audio.working": "En curso"
+  "audio.working": "En curso",
+  "settings.llm_preset": "Modelo preestablecido",
+  "settings.llm_preset_help": "Elige un modelo o Custom. Usa una clave API del proveedor seleccionado."
 }

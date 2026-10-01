@@ -42,7 +42,8 @@ def test_followup_reaches_local_model_as_latest_user_turn(tmp_path, monkeypatch,
         assert messages[-1]["content"].endswith("CURRENT QUESTION:\nWhat about the PDF?")
         assert messages[1:3] == config["prompt_turns"]
         assert "RECENT CONVERSATION" not in messages[0]["content"]
-        assert "PDF export loses speaker names" in messages[-1]["content"]
+        assert "PDF export loses speaker names" in messages[0]["content"]
+        assert "PDF export loses speaker names" not in messages[-1]["content"]
         assert "Available source labels: [A1]" in messages[0]["content"]
     finally:
         engine.shutdown()

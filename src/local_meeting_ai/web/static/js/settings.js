@@ -55,6 +55,12 @@
   let ragReindexLastMessage = "";
 
   const diarizationEngines = {
+    "nvidia-nemotron-3-diarization": {
+      title: "NVIDIA Nemotron 3 Diarization",
+      description: t("settings.nemotron_diarization_description"),
+      note: t("settings.nemotron_diarization_note"),
+      providers: ["cpu", "cuda"],
+    },
     "sherpa-onnx": {
       title: "Sherpa-ONNX diarization",
       description: "Recommended default · local ONNX segmentation and embeddings.",
@@ -92,7 +98,7 @@
         <label class="engine-field">
           <span>Diarization engine</span>
           <select id="diarization-engine">
-            <option value="sherpa-onnx">Sherpa-ONNX · recommended default</option>
+            <option value="sherpa-onnx">Sherpa-ONNX · alternative</option>
             <option value="diarize">diarize · CPU-only alternative</option>
             <option value="pyannote-community-1">Pyannote Community-1 · precision alternative</option>
           </select>
@@ -131,8 +137,14 @@
   }
 
   function updateDiarizationEngineFields() {
-    const engineId = $("#diarization-engine")?.value || "sherpa-onnx";
+    const engineId = $("#diarization-engine")?.value || "nvidia-nemotron-3-diarization";
     const details = diarizationEngines[engineId] || diarizationEngines["sherpa-onnx"];
+    const nemotron = engineId === "nvidia-nemotron-3-diarization";
+    const speakerCount = $("#diarization-speakers");
+    if (speakerCount) {
+      speakerCount.disabled = nemotron;
+      if (nemotron) speakerCount.value = "-1";
+    }
     const provider = $("#diarization-provider");
     document.querySelectorAll("[data-diarization-sherpa]").forEach((element) => {
       element.hidden = engineId !== "sherpa-onnx";
@@ -723,10 +735,13 @@
     $("#ai-base-url").value = config.base_url || "";
     $("#ai-litellm-model").value = provider === "litellm" ? (config.model || "") : "";
     $("#ai-litellm-base-url").value = config.base_url || "";
+    window.Meet2Notes.llmPresets?.sync("ai-litellm-model");
     $("#ai-key-env").value = config.api_key_env || "MEET2NOTES_AI_API_KEY";
     $("#ai-streaming").checked = config.streaming ?? true;
-    $("#ai-context-length").value = config.context_length ?? 16384;
-    $("#ai-bonsai-auto-context").checked = config.bonsai_auto_context ?? true;
+    const contextLimit = 2097152;
+    $("#ai-context-length").max = contextLimit;
+    $("#ai-context-length").value = Math.min(config.context_length ?? 16384, contextLimit);
+    $("#ai-bonsai-auto-context").checked = config.auto_context ?? config.bonsai_auto_context ?? true;
     $("#ai-batch-size").value = config.batch_size ?? 512;
     $("#ai-micro-batch").value = config.micro_batch_size ?? 128;
     $("#ai-threads").value = config.threads ?? 0;
@@ -843,6 +858,7 @@
     $("#live-assistant-preload").checked = Boolean(config.preload_on_start);
     $("#live-assistant-model").value = config.provider === "litellm" ? (config.model || "") : "";
     $("#live-assistant-base-url").value = config.base_url || "";
+    window.Meet2Notes.llmPresets?.sync("live-assistant-model");
     $("#live-assistant-system-prompt").value = config.system_prompt || "";
     $("#live-assistant-triggers").value = (config.trigger_phrases || [])
       .map((item) => JSON.stringify(item)).join(", ");
@@ -851,7 +867,8 @@
     $("#live-assistant-cooldown").value = config.cooldown_seconds ?? 30;
     $("#live-assistant-rate").value = config.max_calls_per_minute ?? 6;
     $("#live-assistant-streaming").checked = config.streaming ?? true;
-    $("#live-assistant-context-length").value = config.context_length ?? 8192;
+    $("#live-assistant-context-length").value = config.context_length ?? 16384;
+    $("#live-assistant-auto-context").checked = config.auto_context ?? config.bonsai_auto_context ?? true;
     $("#live-assistant-max-output").value = config.max_output_tokens ?? 1024;
     $("#live-assistant-temperature").value = config.temperature ?? 0.2;
     $("#live-assistant-timeout").value = config.request_timeout_seconds ?? 20;
@@ -970,7 +987,7 @@
     ensureDiarizationControls();
     diarizationPreferences = preferences || {};
     const config = preferences.diarization || {};
-    $("#diarization-engine").value = config.engine || "sherpa-onnx";
+    $("#diarization-engine").value = config.engine || "nvidia-nemotron-3-diarization";
     $("#diarization-segmentation").value =
       config.segmentation_model || "pyannote-3.0";
     $("#diarization-embedding").value =
@@ -999,9 +1016,9 @@
     const body = $("#diarization-engine-model-list");
     if (!body) return;
     const config = preferences?.diarization || {};
-    const selectedEngine = config.engine || "sherpa-onnx";
+    const selectedEngine = config.engine || "nvidia-nemotron-3-diarization";
     const root = capabilities?.diarization || {};
-    const engines = root.engines || { [root.engine || "sherpa-onnx"]: root };
+    const engines = root.engines || { [root.engine || "nvidia-nemotron-3-diarization"]: root };
     const engineSelect = $("#diarization-engine");
     Object.entries(engines).forEach(([engineId, capability]) => {
       if (!diarizationEngines[engineId]) {
@@ -1090,7 +1107,7 @@
 
   function renderAuxiliaryCapabilities(capabilities) {
     latestCapabilities = capabilities;
-    const configuredEngine = $("#diarization-engine")?.value || "sherpa-onnx";
+    const configuredEngine = $("#diarization-engine")?.value || "nvidia-nemotron-3-diarization";
     const diarizationRoot = capabilities.diarization || {};
     const diarization = diarizationRoot.engines?.[configuredEngine] || diarizationRoot;
     $("#diarization-worker-summary").textContent = renderWorker(
@@ -2049,7 +2066,9 @@
             api_key_env: $("#ai-key-env").value.trim(),
             streaming: $("#ai-streaming").checked,
             context_length: Number($("#ai-context-length").value),
+            auto_context: $("#ai-bonsai-auto-context").checked,
             bonsai_auto_context: $("#ai-bonsai-auto-context").checked,
+            model_context_limit: ollama?.model_context_limit ?? null,
             batch_size: Number($("#ai-batch-size").value),
             micro_batch_size: Number($("#ai-micro-batch").value),
             threads: Number($("#ai-threads").value),
@@ -2147,6 +2166,7 @@
         api_key_env: "MEET2NOTES_LIVE_ASSISTANT_API_KEY",
         streaming: $("#live-assistant-streaming").checked,
             context_length: Number($("#live-assistant-context-length").value),
+        auto_context: $("#live-assistant-auto-context").checked,
         max_output_tokens: Number($("#live-assistant-max-output").value),
         temperature: Number($("#live-assistant-temperature").value),
         gpu_layers: Number($("#live-assistant-gpu-layers").value),

@@ -6,7 +6,7 @@ param(
     [ValidateSet("all", "none")]
     [string]$Models = "all",
 
-    [ValidateSet("auto", "light", "bonsai-1bit", "bonsai-ternary", "none")]
+    [ValidateSet("auto", "light", "bonsai-8b", "bonsai-1bit", "bonsai-ternary", "none")]
     [string]$LlmProfile = "auto",
 
     [ValidateSet(

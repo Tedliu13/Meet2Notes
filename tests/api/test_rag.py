@@ -80,14 +80,17 @@ class RecordingSummaryEngine:
 
 
 @pytest.mark.parametrize("automatic", [True, False])
-def test_bonsai_full_attachment_grows_context_without_truncating(settings, automatic, monkeypatch):
+@pytest.mark.parametrize("profile, limit", [("bonsai-27b-1bit", 262144), ("bonsai-8b-1bit", 65536)])
+def test_bonsai_full_attachment_grows_context_without_truncating(
+    settings, automatic, monkeypatch, profile, limit,
+):
     engine = RecordingSummaryEngine()
     monkeypatch.setattr(engine, "capability", lambda: {
-        "available": True, "installed": True, "models": [{"id": "bonsai-27b-1bit"}],
+        "available": True, "installed": True, "models": [{"id": profile}],
     })
     with TestClient(create_app(settings, summary_engine=engine)) as client:
         saved = client.put("/api/settings", json={"summary_engine": {
-            "profile_id": "bonsai-27b-1bit", "provider": "local",
+            "profile_id": profile, "provider": "local",
             "context_length": 8192, "bonsai_auto_context": automatic,
         }})
         assert saved.status_code == 200, saved.text
@@ -100,12 +103,32 @@ def test_bonsai_full_attachment_grows_context_without_truncating(settings, autom
         })
         if automatic:
             assert response.status_code == 200
-            assert 8192 < engine.configs[-1]["context_length"] <= 262144
+            assert 8192 < engine.configs[-1]["context_length"] <= limit
             assert text in engine.contexts[-1]
             assert response.json()["retrieval"] is None
         else:
             assert response.status_code == 422
             assert not engine.contexts
+
+
+def test_remote_full_attachment_exceeds_old_application_ceiling(settings):
+    engine = RecordingSummaryEngine()
+    with TestClient(create_app(settings, summary_engine=engine)) as client:
+        saved = client.put("/api/settings", json={"summary_engine": {
+            "provider": "litellm", "model": "openai/gpt-6-luna",
+            "context_length": 8192, "auto_context": True,
+        }})
+        assert saved.status_code == 200
+        text = "Meeting evidence. " * 70000 + "UNIQUE_FINAL_DECISION"
+        meeting = _completed_transcript(client, "Long remote meeting", text)
+        transcript = client.app.state.container.transcriptions.active_for_meeting(meeting)
+        response = client.post("/api/prompt", json={
+            "question": "What was decided?", "meeting_id": meeting,
+            "attachments": [{"kind": "transcription", "id": transcript.id}],
+        })
+        assert response.status_code == 200, response.text
+        assert engine.configs[-1]["context_length"] > 262144
+        assert text in engine.contexts[-1]
 
 
 def test_prompt_keeps_chat_roles_and_separates_summary_default(settings: AppSettings) -> None:

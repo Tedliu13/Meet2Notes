@@ -53,7 +53,8 @@ class AudioRecommendation:
                 "preload_on_start": False, "keep_model_loaded": True,
             },
             "diarization": {
-                "engine": "sherpa-onnx", "provider": "cpu", "num_threads": self.threads,
+                "engine": "nvidia-nemotron-3-diarization", "provider": self.device,
+                "num_threads": self.threads,
                 "segmentation_model": "pyannote-3.0", "embedding_model": "3d-speaker",
                 "quantized_segmentation": True, "preload_on_start": False,
                 "keep_model_loaded": False,
@@ -78,11 +79,11 @@ def recommend_audio(
             tier = "cuda-16gb" if gpu.memory_mib >= 15800 else (
                 "cuda-8gb" if gpu.memory_mib >= 7800 else "cuda-4gb")
             return AudioRecommendation(tier, "small", "turbo", "cuda", gpu.index, threads,
-                                       "Whisper Small live, Turbo final; Sherpa on CPU.")
+                                       "Whisper Small live, Turbo final; Nemotron 3 diarization.")
     modest = cores < 8 or hardware.ram_bytes < 15 * 1024**3
     tiny = cores <= 2 or hardware.ram_bytes < 6 * 1024**3
     return AudioRecommendation(
         "cpu-light" if modest else "cpu-balanced", "tiny" if tiny else "base",
         "base" if modest else "small", "cpu", 0, threads,
-        "Portable INT8 transcription and CPU Sherpa; no validated CUDA runtime available.",
+        "Portable INT8 transcription and CPU Nemotron 3; no validated CUDA runtime available.",
     )

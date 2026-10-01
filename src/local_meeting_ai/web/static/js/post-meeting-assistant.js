@@ -348,12 +348,15 @@
       const usage = result.context_usage || {};
       const used = Number(usage.estimated_total_input_tokens || 0);
       const capacity = Number(usage.context_window_tokens || 0);
-      contextBudget.textContent = used && capacity
+      contextBudget.textContent = used && usage.automatic_remote_budget
+        ? `~${used.toLocaleString()} tokens · Auto`
+        : used && capacity
         ? t("post_assistant.token_budget", { used: used.toLocaleString(), capacity: capacity.toLocaleString() })
         : contextBudget.textContent;
       setRagState("ready", "Local RAG");
     } catch (error) {
       if (!activity.finish(true)) pending.remove();
+      if (!question.value.trim()) question.value = value;
       appendMessage("assistant", t("post_assistant.error", { message: error.message }), [], false);
       setRagState("error", "RAG error");
       toast(error.message, "error");

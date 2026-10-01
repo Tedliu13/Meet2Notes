@@ -27,8 +27,18 @@ from local_meeting_ai.infrastructure.summary_hardware import (
 from local_meeting_ai.paths import AppPaths
 
 
+def test_explicit_8b_install_option_and_context_metadata():
+    arguments = model_setup.build_parser().parse_args(["--llm-profile", "bonsai-8b"])
+    assert arguments.llm_profile == "bonsai-8b"
+    profile = assets.PROFILES["bonsai-8b-1bit"]
+    assert profile["context_length"] == 8192
+    assert profile["max_context_length"] == 65536
+    assert profile["native_runtime"] is True
+
+
 @pytest.mark.parametrize(("memory", "expected"), [
-    (4096, LIGHT_PROFILE), (6144, LIGHT_PROFILE), (7799, LIGHT_PROFILE),
+    (2048, LIGHT_PROFILE), (2799, LIGHT_PROFILE), (3072, "bonsai-8b-1bit"),
+    (4096, "bonsai-8b-1bit"), (6144, "bonsai-8b-1bit"), (7799, "bonsai-8b-1bit"),
     (8192, "bonsai-27b-1bit"), (12288, "bonsai-27b-1bit"),
     (15800, "bonsai-27b-ternary"), (16380, "bonsai-27b-ternary"),
 ])

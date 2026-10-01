@@ -24,7 +24,7 @@ class DiarizationEngineRouter:
         self,
         engines: dict[str, DiarizationEngine] | ProviderRegistry,
         *,
-        primary: str = "sherpa-onnx",
+        primary: str = "nvidia-nemotron-3-diarization",
     ) -> None:
         if isinstance(engines, dict) and not engines:
             raise ValueError("At least one diarization engine is required")

@@ -1,6 +1,87 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 - 2026-10-01
+
+Nemotron 3 becomes the default diarization engine for fresh installations.
+This release adds cached voice matching, Bonsai 8B for smaller GPUs, remote
+model presets, and flexible context with provider-aware prompt caching.
+
+### AI models, context and caching
+
+- Add automatic context sizing for local and remote AI engines, with separate
+  output limits and full remote attachments validated by the provider. Share
+  stable notes/chat prefixes across engines, enable supported provider cache
+  hints, and retain larger resident local windows for follow-up cache reuse.
+  See `docs/automatic-context-cache.md` for limits and validation.
+
+- Add shared OpenAI, Anthropic and Gemini model presets to AI Engine and Live
+  Assistant LiteLLM settings, retaining Custom model IDs and manual endpoints.
+  Update the minimum LiteLLM version to 1.103.1 for the current model catalog.
+
+### Installation and speaker recognition
+
+- Default fresh installations to Nemotron 3 diarization, including its private
+  runtime and saved-voice embedding model. Preserve existing user selections.
+- Automatically choose Bonsai 8B 1-bit with 8K initial context on compatible
+  NVIDIA GPUs with 3–7 GB VRAM; retain LFM below 3 GB and existing 27B tiers.
+
+- Save bounded voice identity samples from separate long interventions, skipping
+  their first three seconds and detected overlaps. Use centered shorter speech
+  only when needed, retain complete speaker audio exports, and invalidate previous
+  matching caches when the sampling policy changes.
+
+- Add optional Bonsai 8B 1-bit (1.16 GB), with pinned native runtime installation,
+  an 8K starting context and a separate 65,536-token model ceiling for notes and
+  assistant requests.
+
+- Cache saved-voice and meeting-speaker embeddings locally, invalidating them when
+  source audio, diarization or the embedding model changes. Compare cached vectors
+  without loading the embedding model on repeat runs.
+- Sample up to 30 seconds of distributed voice fragments per speaker, excluding
+  overlap, with up to 60 seconds for uncertain matches. Keep ambiguous speakers
+  unnamed and expose matching progress, cancellation and phase timings.
+
+- Add optional NVIDIA Nemotron 3 Diarization with CPU/CUDA selection, automatic
+  detection of up to eight speakers, bounded audio windows and a speaker cache
+  that persists across windows and resets for each recording.
+- Install its pinned Transformers preview in a private runtime; reuse the
+  existing saved-voice embedding/cosine matcher, model unloading, and cancellation.
+- Report analyzed audio duration throughout diarization and expose the engine
+  in Settings and `meet2notes-models --models nvidia-nemotron-3-diarization`.
+
+### Validation and practical limits
+
+- Real API cache checks succeeded with OpenAI GPT-6 Luna, Claude Sonnet 5.5 and
+  Gemini 3.5 Flash-Lite. Native Bonsai reuse was also verified. Gemini reused only
+  part of the prefix; no provider cache hit or latency is guaranteed. See
+  [context and cache validation](https://github.com/estebanstifli/Meet2Notes/blob/v0.9.0/docs/automatic-context-cache.md).
+- The latest ITV Nemotron run matched all eight saved voices in 7.873 seconds;
+  a cached repeat took 0.098 seconds. Profiles came from the same recording,
+  so this does not establish recognition accuracy on new recordings.
+- Bonsai 8B memory checks include a constrained Linux environment, not a physical
+  RTX 3050 Mobile benchmark. Long-context answer-quality limitations are recorded
+  in [the validation report](https://github.com/estebanstifli/Meet2Notes/blob/v0.9.0/docs/bonsai-8b-validation.md).
+
+### Updating to 0.9.0
+
+- Stop the application before updating and restart afterwards. Windows users can
+  run `update.bat` or `install-update.bat`; Pinokio users can select **Update**.
+  Source installations should pull the release and rerun `./install.sh` with
+  their existing storage/backend options.
+- Meetings, recordings, saved voices, custom storage and existing model choices
+  are preserved. New defaults do not automatically replace a saved engine.
+- To adopt Nemotron 3 or Bonsai 8B, select/install it in Settings, or apply the
+  recommended audio profile explicitly. Initial downloads include the private
+  runtime and required model assets; LLM installation does not generate a test answer.
+- Automatic context is enabled by default unless a previous manual/Bonsai
+  preference disabled it. Disable it in AI Engine or Live Assistant to retain
+  a fixed budget. Provider limits and available memory still apply.
+- Voice embedding caches are rebuilt when source audio, model or sampling policy
+  changes. Existing saved voice WAVs are retained; re-save a noisy voice sample
+  to apply the new interior selection to its audio.
+- LiteLLM is upgraded to at least 1.103.1 by the normal dependency update.
+  No manual database migration is required. See
+  [safe updates](https://github.com/estebanstifli/Meet2Notes/blob/v0.9.0/docs/updating.md).
 
 ## 0.8.0 - 2026-09-30
 

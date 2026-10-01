@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from local_meeting_ai.adapters.diarization.diarize_cpu import DiarizeCpuEngine
+from local_meeting_ai.adapters.diarization.nemotron3 import Nemotron3DiarizationEngine
 from local_meeting_ai.adapters.diarization.pyannote_community import (
     PyannoteCommunityDiarizationEngine,
 )
@@ -43,6 +44,7 @@ MODEL_CHOICES = (
     "diarization",
     "diarize",
     "pyannote-community-1",
+    "nvidia-nemotron-3-diarization",
     "summary",
     "embeddings",
     "vibevoice-bitnet",
@@ -83,7 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Model directory (default: <Meet2Notes installation>/models)",
     )
     parser.add_argument(
-        "--llm-profile", choices=("auto", "light", "bonsai-1bit", "bonsai-ternary", "none"),
+        "--llm-profile",
+        choices=("auto", "light", "bonsai-8b", "bonsai-1bit", "bonsai-ternary", "none"),
         default="auto", help="Automatic hardware recommendation; preserves existing AI settings",
     )
     parser.add_argument("--llm-backend", choices=("auto", "cpu", "cuda"), default="auto")
@@ -149,7 +152,7 @@ async def install_models(
         print("      Faster Whisper is ready.")
 
     if "diarization" in requested:
-        print("[2/4] Downloading and verifying sherpa-onnx diarization models...")
+        print("[2/4] Downloading Nemotron 3 diarization and voice matching models...")
         await _install_diarization(paths)
         print("      Speaker diarization is ready.")
 
@@ -188,6 +191,14 @@ async def install_models(
         await _install_nvidia_engine(paths, "nemotron")
         print("      NVIDIA Nemotron is ready for live and final transcription.")
 
+    if "nvidia-nemotron-3-diarization" in requested:
+        engine = Nemotron3DiarizationEngine(paths.models)
+        try:
+            await engine.prepare(DIARIZATION_DEFAULTS, allow_model_download=True)
+            print("NVIDIA Nemotron 3 Diarization installed (up to 8 speakers).")
+        finally:
+            engine.shutdown()
+
     print("Meet2Notes model setup completed successfully.")
 
 
@@ -198,9 +209,9 @@ async def _install_whisper(paths: AppPaths, model: str) -> None:
 
 
 async def _install_diarization(paths: AppPaths) -> None:
-    from local_meeting_ai.application.audio_setup import download_sherpa
+    from local_meeting_ai.application.audio_setup import download_default_diarization
 
-    await asyncio.to_thread(download_sherpa, paths.models)
+    await download_default_diarization(paths.models)
 
 
 async def _install_summary(
@@ -225,6 +236,7 @@ async def _install_summary(
         recommendation = recommend(detect_hardware(), backend)
         profile_id = {
             "light": LIGHT_PROFILE,
+            "bonsai-8b": "bonsai-8b-1bit",
             "bonsai-1bit": "bonsai-27b-1bit",
             "bonsai-ternary": "bonsai-27b-ternary",
         }.get(selection, recommendation.profile)

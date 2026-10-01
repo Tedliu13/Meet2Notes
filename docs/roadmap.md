@@ -1,9 +1,10 @@
 # Meet2Notes roadmap
 
 Meet2Notes is a public, MIT-licensed, private meeting-intelligence workspace.
-Version 0.8.0 adds native Bonsai with reusable long context, streamed assistant
-answers, Ollama discovery and hardware-aware installation to the library search,
-tags and reusable assistant actions introduced in 0.7.0.
+Version 0.9.0 adds Nemotron 3 diarization, cached voice matching, Bonsai 8B for
+smaller GPUs, remote model presets and automatic context across AI engines.
+It builds on the native Bonsai, streaming, Ollama discovery and hardware-aware
+installation introduced in 0.8.0, and the meeting library tools from 0.7.0.
 
 This roadmap records product direction as well as implementation milestones.
 Items marked completed describe functionality already available in the current

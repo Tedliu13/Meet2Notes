@@ -1,10 +1,27 @@
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from local_meeting_ai.application import audio_setup
 from local_meeting_ai.infrastructure.audio_hardware import recommend_audio
 from local_meeting_ai.infrastructure.summary_hardware import Hardware, NvidiaGpu
+
+
+@pytest.mark.asyncio
+async def test_default_diarization_downloads_engine_and_voice_embeddings_only(
+    tmp_path, monkeypatch,
+):
+    engine = Mock(prepare=AsyncMock())
+    matcher = Mock(prepare=AsyncMock())
+    monkeypatch.setattr(audio_setup, "Nemotron3DiarizationEngine", lambda path: engine)
+    monkeypatch.setattr(audio_setup, "SherpaOnnxSpeakerProfileMatcher", lambda path: matcher)
+    await audio_setup.download_default_diarization(tmp_path)
+    engine.prepare.assert_awaited_once_with({}, allow_model_download=True)
+    matcher.prepare.assert_awaited_once_with(
+        {"embedding_model": "3d-speaker"}, allow_model_download=True,
+    )
+    engine.shutdown.assert_called_once()
+    matcher.shutdown.assert_called_once()
 
 
 @pytest.mark.parametrize(("vram", "tier"), [
@@ -14,7 +31,8 @@ def test_recommendation_selects_bundle(vram, tier):
     hardware = Hardware("Windows", "amd64", 32 * 1024**3, (NvidiaGpu(0, vram, 8.6, 560),))
     plan = recommend_audio(hardware, cores=12, cuda_available=True)
     assert plan.tier == tier
-    assert plan.preferences()["diarization"]["provider"] == "cpu"
+    assert plan.preferences()["diarization"]["provider"] == plan.device
+    assert plan.preferences()["diarization"]["engine"] == "nvidia-nemotron-3-diarization"
     assert plan.preferences()["automatic_model_memory"]
     if vram >= 4096:
         assert (plan.live_model, plan.final_model) == ("small", "turbo")
@@ -49,7 +67,7 @@ async def test_bundle_commits_only_after_all_downloads(tmp_path, monkeypatch, fa
     downloaded = []
     monkeypatch.setattr(audio_setup, "download_whisper",
                         lambda path, model: downloaded.append(model))
-    monkeypatch.setattr(audio_setup, "download_sherpa", Mock(
+    monkeypatch.setattr(audio_setup, "download_default_diarization", AsyncMock(
         side_effect=RuntimeError("Download failed") if fail else None))
     if fail:
         with pytest.raises(RuntimeError, match="Download failed"):

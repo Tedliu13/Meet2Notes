@@ -26,11 +26,11 @@ class BonsaiMemoryError(CapabilityUnavailableError):
     """Native runtime explicitly reported a failed memory allocation."""
 
 
-def host_cache_fits(context_length: int) -> bool:
+def host_cache_fits(context_length: int, *, bytes_per_token: int = 32768) -> bool:
     """Conservative headroom for a Q4 host cache plus recurrent state/buffers."""
     try:
         memory = __import__("psutil").virtual_memory()
-        return bool(memory.available >= context_length * 32768 + 2 * 1024**3)
+        return bool(memory.available >= context_length * bytes_per_token + 2 * 1024**3)
     except (ImportError, AttributeError, OSError):
         return False
 

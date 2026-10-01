@@ -106,4 +106,8 @@ def recommend(hardware: Hardware, backend: str = "auto") -> Recommendation:
         )
     if gpu.memory_mib >= 7800:
         return Recommendation("bonsai-27b-1bit", "NVIDIA GPU with at least 8 GB VRAM.", gpu.index)
-    return Recommendation(LIGHT_PROFILE, "Less than 8 GB dedicated VRAM.")
+    if gpu.memory_mib >= 2800:
+        return Recommendation(
+            "bonsai-8b-1bit", "Compatible NVIDIA GPU with 3-7 GB VRAM.", gpu.index,
+        )
+    return Recommendation(LIGHT_PROFILE, "Less than 3 GB VRAM; keep the lightweight model.")

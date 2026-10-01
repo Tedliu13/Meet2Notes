@@ -25,9 +25,10 @@ def test_health_and_capabilities_are_explicit(client: TestClient) -> None:
     assert features["summaries"] in {"available", "requires_install"}
     assert features["diarization"] in {"available", "requires_install"}
     payload = capabilities.json()
-    assert payload["diarization"]["worker"]["thread_prefix"] == "sherpa-diarization"
+    assert payload["diarization"]["worker"]["thread_prefix"] == "nvidia-nemotron-3-diarization"
     assert sorted(payload["diarization"]["engines"]) == [
         "diarize",
+        "nvidia-nemotron-3-diarization",
         "pyannote-community-1",
         "sherpa-onnx",
     ]

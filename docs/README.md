@@ -6,6 +6,15 @@ and future plans do not become mixed together.
 
 ## Current behavior and public contracts
 
+- [Automatic context and caching](automatic-context-cache.md): local model limits,
+  remote provider behavior and real OpenAI, Claude and Gemini cache checks.
+- [Remote model presets](litellm-presets.md): shared AI Engine and Live Assistant
+  selectors, Custom endpoints and provider compatibility.
+- [Bonsai 8B validation](bonsai-8b-validation.md): memory measurements and quality
+  limitations for smaller GPUs.
+- [Voice sampling validation](voice-sampling-validation.md): interior samples,
+  embedding reuse and the ITV recognition checks.
+
 - [Performance demo](performance-demo.md): native Bonsai on an 8 GB GPU,
   measured cold-load and follow-up timings, and the recording methodology.
 - [Automatic LLM setup](automatic-llm-setup.md): hardware profiles, native Bonsai,

@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
       shift
       LLM_PROFILE="${1:?Missing LLM profile}"
       case "${LLM_PROFILE}" in
-        auto|light|bonsai-1bit|bonsai-ternary|none) ;;
+        auto|light|bonsai-8b|bonsai-1bit|bonsai-ternary|none) ;;
         *) echo "Invalid --llm-profile" >&2; exit 2 ;;
       esac
       ;;

@@ -3,7 +3,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from local_meeting_ai.domain.entities import Meeting, Speaker, SpeakerProfile, SpeakerTurn
+from local_meeting_ai.adapters.diarization.voice_sampling import exclusive_ranges, sample_ranges
+from local_meeting_ai.domain.entities import (
+    DiarizationSegment,
+    Meeting,
+    Speaker,
+    SpeakerProfile,
+    SpeakerTurn,
+)
 from local_meeting_ai.domain.errors import NotFoundError, ValidationError
 from local_meeting_ai.domain.protocols import AudioNormalizer, AudioRangeExporter
 from local_meeting_ai.infrastructure.database.repositories import (
@@ -13,6 +20,7 @@ from local_meeting_ai.infrastructure.database.repositories import (
     TranscriptionRepository,
 )
 from local_meeting_ai.infrastructure.storage import MeetingStorage
+from local_meeting_ai.infrastructure.voiceprint_cache import voiceprint_cache_path
 
 from .speaker_text import speaker_turn_text
 
@@ -61,6 +69,7 @@ class SpeakerService:
             raise NotFoundError("Saved voice not found")
         if profile.sample_path:
             Path(profile.sample_path).unlink(missing_ok=True)
+            voiceprint_cache_path(Path(profile.sample_path)).unlink(missing_ok=True)
         self.profiles.delete(profile_id)
 
     def profile_sample(self, profile_id: int) -> Path:
@@ -88,15 +97,38 @@ class SpeakerService:
         except ValueError as error:
             raise ValidationError(str(error)) from error
         try:
-            path, _, _ = await self.export_audio(transcription_id, speaker_id, "wav")
             destination = self.storage.speaker_profile_path(profile.id)
-            destination.write_bytes(path.read_bytes())
+            await self.export_voice_sample(transcription_id, speaker_id, destination)
             profile = self.profiles.update(profile.id, sample_path=str(destination)) or profile
             self.profiles.link_speaker(speaker_id, profile.id)
             return profile
         except Exception:
+            self.storage.speaker_profile_path(profile.id).unlink(missing_ok=True)
             self.profiles.delete(profile.id)
             raise
+
+    async def export_voice_sample(
+        self, transcription_id: int, speaker_id: int, destination: Path,
+    ) -> None:
+        """Export bounded identity samples, independently of full speaker exports."""
+        transcription = self.transcriptions.get(transcription_id)
+        speaker = self.transcriptions.get_speaker(speaker_id)
+        if not transcription or not speaker or speaker.meeting_id != transcription.meeting_id:
+            raise NotFoundError("Speaker or transcription not found")
+        recording = self.recordings.latest_for_role(transcription.meeting_id, "normalized")
+        if not recording:
+            raise NotFoundError("The normalized meeting audio is unavailable")
+        turns = self.transcriptions.speaker_turns(transcription_id)
+        clean = exclusive_ranges([
+            DiarizationSegment(t.start_ms, t.end_ms, t.speaker_id) for t in turns
+        ])
+        duration = recording.duration_ms or max((t.end_ms for t in turns), default=0)
+        ranges = sample_ranges(clean.get(speaker_id, []), duration)[:5]
+        if not ranges:
+            raise ValidationError("Not enough isolated speech to save this voice")
+        await self.exporter.export_audio_ranges(
+            Path(recording.local_path), destination, sorted(ranges), output_format="wav",
+        )
 
     async def create_profile_from_upload(self, name: str, upload: object) -> SpeakerProfile:
         clean = " ".join(name.split())

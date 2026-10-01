@@ -169,6 +169,9 @@ class SpeakerProfileMatcher(Protocol):
         turns: list[DiarizationSegment],
         profiles: list[Any],
         config: dict[str, Any],
+        *,
+        progress: ProgressReporter | None = None,
+        is_cancelled: CancellationCheck | None = None,
     ) -> dict[int, Any]: ...
 
     def unload(self) -> None: ...
