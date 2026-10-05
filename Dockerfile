@@ -38,6 +38,28 @@ RUN python -m pip install --upgrade pip \
     && python -m pip install 'torch>=2.6,<3' 'torchaudio>=2.6,<3' --index-url https://download.pytorch.org/whl/cpu \
     && python -m pip install '.[transcription,ai,nvidia-asr,pyannote-diarization]'
 
+# Fail the Coolify build if the installed decoder API is incompatible.
+# This uses generated audio only and never loads or downloads a model.
+RUN python - <<'PY'
+import io
+import wave
+from importlib.metadata import version
+from faster_whisper.audio import decode_audio
+
+print('Transcription runtime: av=' + version('av') + ', faster-whisper=' + version('faster-whisper'), flush=True)
+audio_file = io.BytesIO()
+with wave.open(audio_file, 'wb') as audio:
+    audio.setnchannels(1)
+    audio.setsampwidth(2)
+    audio.setframerate(16000)
+    audio.writeframes(b'\x00\x00' * 16000)
+audio_file.seek(0)
+decoded = decode_audio(audio_file, sampling_rate=16000)
+assert decoded.shape == (16000,), decoded.shape
+assert str(decoded.dtype) == 'float32', decoded.dtype
+print('Faster Whisper WAV decode passed', flush=True)
+PY
+
 USER 10001:10001
 EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \

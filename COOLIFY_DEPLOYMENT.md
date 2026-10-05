@@ -69,6 +69,8 @@ Coolify 的 Environment Variables 中，本專案的 `M2N_*` 設定只供 runtim
 
 若 build 在 `apt-get` 階段以 exit code 100 失敗，請展開詳細 build log，保留失敗前的 `Err:`／`E:` 訊息；退出碼本身不足以判定是 DNS、套件來源、磁碟或其他問題。Dockerfile 在系統套件及目錄建立完成後才設定 `TMPDIR=/cache/tmp`，避免 apt 使用尚不存在的暫存目錄；build 期間先使用 base image 的 `/tmp`，不是新增主機 mount。2026-10-05 部署摘要指出 apt 階段失敗，這項順序修正仍需在 Docker 環境重新建置確認。
 
+若重新部署後仍出現 `metadata_errors`，先確認最新部署 log 的 commit SHA 包含 `av<19` 修正，再於 Coolify 的執行中 meet2notes 容器 Terminal 執行 `python -m pip show av faster-whisper meet2notes`，取得實際 runtime 的版本與 Location。不要只依 repository 設定推定已更新，也不要用臨時 pip install 修正式容器。Dockerfile 安裝完成後會用一秒記憶體 WAV 呼叫 Faster Whisper 的 `decode_audio`，build log 應包含 `Transcription runtime: av=...` 及 `Faster Whisper WAV decode passed`；不相容時直接拒絕建置。此檢查不下載模型，也不使用正式資料。若該建置已通過而工作仍失敗，提供完整 Python traceback（從 Traceback 到最後一行），才能確認實際呼叫的程式與引擎。
+
 部署後，在 Settings 安裝模型。先用 Faster Whisper small CPU/int8 驗證完整流程，再依實際中文錄音品質選 medium／large-v3。四個 queue workers 並不保證全部引擎四路同時推論：首次 Hosted 設定 Faster Whisper `num_workers=4`／每 worker 2 threads；其餘引擎依原本 executor／序列化限制處理。模型下載、解碼及推論都消耗 CPU/RAM，需實測長錄音並觀察 VM。
 
 Settings 可下載本地 GGUF LLM，或設定外部 API。Ollama 若部署為另一個 container，使用容器 hostname／Coolify Internal URL，不能用 `localhost` 指向它。自訂 GGUF 的 Browse 改為列出 `/models` 已安裝檔案；可先透過模型目錄下載模型，或由管理者匯入獨立模型 volume。
