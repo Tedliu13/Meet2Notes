@@ -39,6 +39,8 @@ python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_b
 
 不要公開 key 或密碼。API key 可在 Settings 設定；原有 keyring 操作在 Hosted 模式改由加密檔案後端保存 `/data/secrets/credentials.enc`，包含摘要 provider 與 Webhook 密鑰。若要以 provider 自訂環境變數讀取 API key，需自行在 Compose 加入該變數引用，再由 Coolify 填入正式值。
 
+Coolify 的 Environment Variables 中，本專案的 `M2N_*` 設定只供 runtime／Compose 使用，請取消 **Build Variable**，保留 **Runtime Variable**，尤其是 `M2N_AUTH_PASSWORD`、`M2N_SECRETS_KEY` 與 `M2N_PYANNOTE_TOKEN`。本 Dockerfile 不需要這些 build arguments。保存後重新部署，並保留原有加密金鑰。參考：[Coolify 環境變數的 build／runtime 範圍](https://coolify.io/docs/applications/configuration/environment-variables)。
+
 ## 3. 儲存與 mounts 稽核
 
 | Type | Source（Compose volume 名稱） | Destination | Read-only | 用途 |
@@ -59,6 +61,8 @@ python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_b
 - Health：GET `/api/health`，確認 `status=ok`；30 秒檢查、5 秒 timeout、120 秒 startup grace、3 次失敗。
 - Docker base 固定 `python:3.12.12-slim-bookworm`；Torch 安裝 CPU wheels。image 包含 FFmpeg 及各引擎執行依賴，不包含模型權重。
 - `.dockerignore` 採 build context 允許清單，排除本機模型、資料、secrets、虛擬環境。
+
+若 build 在 `apt-get` 階段以 exit code 100 失敗，請展開詳細 build log，保留失敗前的 `Err:`／`E:` 訊息；退出碼本身不足以判定是 DNS、套件來源、磁碟或其他問題。Dockerfile 在系統套件及目錄建立完成後才設定 `TMPDIR=/cache/tmp`，避免 apt 使用尚不存在的暫存目錄；build 期間先使用 base image 的 `/tmp`，不是新增主機 mount。2026-10-05 部署摘要指出 apt 階段失敗，這項順序修正仍需在 Docker 環境重新建置確認。
 
 部署後，在 Settings 安裝模型。先用 Faster Whisper small CPU/int8 驗證完整流程，再依實際中文錄音品質選 medium／large-v3。四個 queue workers 並不保證全部引擎四路同時推論：首次 Hosted 設定 Faster Whisper `num_workers=4`／每 worker 2 threads；其餘引擎依原本 executor／序列化限制處理。模型下載、解碼及推論都消耗 CPU/RAM，需實測長錄音並觀察 VM。
 

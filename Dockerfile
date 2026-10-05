@@ -11,8 +11,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/models/huggingface \
     TORCH_HOME=/models/torch \
     XDG_CACHE_HOME=/cache \
-    TMPDIR=/cache/tmp \
-    HOME=/data \
     OMP_NUM_THREADS=2 \
     OPENBLAS_NUM_THREADS=2 \
     MKL_NUM_THREADS=2 \
@@ -26,6 +24,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && useradd --uid 10001 --gid 10001 --no-create-home meet2notes \
     && mkdir -p /app /data /models /cache/tmp \
     && chown -R 10001:10001 /data /models /cache
+
+# apt must use the base image's /tmp before the runtime directories exist.
+# Set these only after provisioning so build tools also see valid directories.
+ENV TMPDIR=/cache/tmp \
+    HOME=/data
 
 WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
