@@ -1396,6 +1396,7 @@ body[data-hosted="true"] .source-mode-grid {
 }
 
 .compact-file-drop:hover,
+.compact-file-drop.dragging,
 .compact-file-drop.has-file {
   color: #176bff;
   background: #f3f7ff;

@@ -2427,7 +2427,7 @@
   function resetFilePicker() {
     const input = document.querySelector("#capture-file");
     input.value = "";
-    document.querySelector("#capture-file-drop").classList.remove("has-file");
+    document.querySelector("#capture-file-drop").classList.remove("has-file", "dragging");
     document.querySelector("#capture-file-name").textContent = "Drop a file here or browse";
     document.querySelector("#capture-file-help").textContent =
       "Audio and video up to the configured local limit";
@@ -2640,6 +2640,31 @@
     document.querySelector("#capture-file-drop").classList.add("has-file");
     document.querySelector("#capture-file-name").textContent = file.name;
     document.querySelector("#capture-file-help").textContent = formatBytes(file.size);
+  });
+  const captureDropZone = document.querySelector("#capture-file-drop");
+  ["dragenter", "dragover"].forEach((name) => {
+    captureDropZone.addEventListener(name, (event) => {
+      event.preventDefault();
+      if (!document.querySelector("#transcription-form").dataset.busy) {
+        captureDropZone.classList.add("dragging");
+      }
+    });
+  });
+  ["dragleave", "drop"].forEach((name) => {
+    captureDropZone.addEventListener(name, (event) => {
+      event.preventDefault();
+      captureDropZone.classList.remove("dragging");
+    });
+  });
+  captureDropZone.addEventListener("drop", (event) => {
+    if (document.querySelector("#transcription-form").dataset.busy) return;
+    const file = event.dataTransfer?.files[0];
+    if (!file) return;
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    const input = document.querySelector("#capture-file");
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
   });
   document.querySelector("#pause-capture").addEventListener("click", togglePause);
   document.querySelector("#stop-capture").addEventListener("click", stopCapture);

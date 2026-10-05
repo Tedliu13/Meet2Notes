@@ -81,6 +81,7 @@ Settings 可下載本地 GGUF LLM，或設定外部 API。Ollama 若部署為另
 
 ## 5. 功能差異與上傳
 
+- 匯入視窗支援拖放單一媒體檔案及點選 Browse；兩者使用相同選檔與上傳流程。拖放只更新選取檔案，仍須按 Import and transcribe；正在上傳時不能以拖放替換檔案。
 - Hosted 停用原生音訊 capture、即時轉錄及 Live Assistant 寫入／啟動，保留讀取相容性。會後摘要、問答、講者、RAG、匯出及處理事件 Webhook 沿用原有流程。
 - 桌面 folder picker、資料／模型位置搬移、桌面 MCP config 開啟、CUDA runtime 安裝與應用關機入口停用；持久化位置、重啟、更新改由 Coolify 管理。
 - 原有 desktop 模式保持可用，`M2N_HOSTED=false` 不要求登入 secrets。
