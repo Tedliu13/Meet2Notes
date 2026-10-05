@@ -37,6 +37,10 @@
 python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
 ```
 
+若啟動 logs 顯示 `Incorrect padding` 或 `Fernet key must be 32 url-safe base64-encoded bytes`，代表收到的 `M2N_SECRETS_KEY` 格式錯誤，程式退出後會依 restart policy 重啟。這不是登入密碼，也不是任意 32 字元字串。上方指令只使用 Python 標準函式庫，可在本機 PowerShell 執行；輸出應為 44 個字元，以 `=` 結尾。Coolify Normal view 的 Value 只貼完整輸出，不包含 `M2N_SECRETS_KEY=` 前綴、引號、`b'...'` 或換行，不要刪掉結尾 `=`；取消 Build Variable，保留 Runtime Variable，保存後重新部署讓容器取得新值。不需要為環境變數修正重新 build image，也不要刪除 volumes。
+
+若此部署從未成功啟動及保存 API／Webhook 憑證，可使用新生成的 key。若曾保存 `/data/secrets/credentials.enc`，必須先恢復原本有效的 key；換一把新 key 無法解密舊憑證。程式不會自動產生替代 key 或覆寫無法解密的檔案。不要把正式 key 貼到對話或 logs。
+
 不要公開 key 或密碼。API key 可在 Settings 設定；原有 keyring 操作在 Hosted 模式改由加密檔案後端保存 `/data/secrets/credentials.enc`，包含摘要 provider 與 Webhook 密鑰。若要以 provider 自訂環境變數讀取 API key，需自行在 Compose 加入該變數引用，再由 Coolify 填入正式值。
 
 Coolify 的 Environment Variables 中，本專案的 `M2N_*` 設定只供 runtime／Compose 使用，請取消 **Build Variable**，保留 **Runtime Variable**，尤其是 `M2N_AUTH_PASSWORD`、`M2N_SECRETS_KEY` 與 `M2N_PYANNOTE_TOKEN`。本 Dockerfile 不需要這些 build arguments。保存後重新部署，並保留原有加密金鑰。參考：[Coolify 環境變數的 build／runtime 範圍](https://coolify.io/docs/applications/configuration/environment-variables)。

@@ -18,7 +18,16 @@ class EncryptedFileKeyring(KeyringBackend):
 
     def __init__(self, path: Path, key: str) -> None:
         self.path = path
-        self.cipher = Fernet(key.encode("ascii"))
+        try:
+            self.cipher = Fernet(key.encode("ascii"))
+        except ValueError:
+            raise ValueError(
+                "Invalid M2N_SECRETS_KEY: expected a URL-safe base64-encoded 32-byte "
+                "Fernet key, not a password. Paste the complete generated key including "
+                "its trailing '=' into the Coolify runtime variable. "
+                "If credentials were previously saved, restore the original key. "
+                "See COOLIFY_DEPLOYMENT.md; the credential store was not modified."
+            ) from None
         self.lock = threading.RLock()
         if self.path.exists():
             self._read()

@@ -38,6 +38,9 @@ downloaded after deployment into a separate persistent volume. Hosted mode uses
 four job workers, disables native recording/live transcription and the live
 assistant, and retains imported-media processing and post-meeting features.
 The deployment starts as a single private workspace, not a multi-tenant service.
+`M2N_SECRETS_KEY` must be a generated Fernet key, including its trailing `=`,
+not a password. For restart loops caused by `Incorrect padding`, follow the key
+setup and recovery instructions in [COOLIFY_DEPLOYMENT.md](COOLIFY_DEPLOYMENT.md).
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)
