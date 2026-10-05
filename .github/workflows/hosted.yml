@@ -27,6 +27,22 @@ jobs:
           PY
       - run: docker compose config --quiet
       - run: docker compose build meet2notes
+      - name: Decode audio with the installed transcription dependencies
+        run: |
+          docker compose run --rm --no-deps -T meet2notes python - <<'PY'
+          import io, wave
+          from faster_whisper.audio import decode_audio
+          audio_file = io.BytesIO()
+          with wave.open(audio_file, 'wb') as audio:
+              audio.setnchannels(1)
+              audio.setsampwidth(2)
+              audio.setframerate(16000)
+              audio.writeframes(b'\x00\x00' * 16000)
+          audio_file.seek(0)
+          decoded = decode_audio(audio_file, sampling_rate=16000)
+          assert decoded.shape == (16000,)
+          assert str(decoded.dtype) == 'float32'
+          PY
       - name: Container smoke test without model downloads
         run: |
           docker compose up -d --wait --wait-timeout 180

@@ -64,6 +64,7 @@ Coolify 的 Environment Variables 中，本專案的 `M2N_*` 設定只供 runtim
 - 內部 port：`8765`，由 Coolify 既有 Traefik 提供 HTTPS。
 - Health：GET `/api/health`，確認 `status=ok`；30 秒檢查、5 秒 timeout、120 秒 startup grace、3 次失敗。
 - Docker base 固定 `python:3.12.12-slim-bookworm`；Torch 安裝 CPU wheels。image 包含 FFmpeg 及各引擎執行依賴，不包含模型權重。
+- Faster Whisper 的 transcription extra 限制 `av>=11,<19`：PyAV 19 移除 `av.open(metadata_errors=...)`，會造成音訊解碼時 `open() got an unexpected keyword argument 'metadata_errors'`。遇到此錯誤須部署包含此相依限制的新 commit，重新 build image；僅重啟舊 image 無效。更新後重新執行失敗會議的處理工作，保留 data／models volumes 與原加密 key，無須重新下載模型。參考：[PyAV 19 release notes](https://github.com/PyAV-Org/PyAV/releases/tag/v19.0.0)。
 - `.dockerignore` 採 build context 允許清單，排除本機模型、資料、secrets、虛擬環境。
 
 若 build 在 `apt-get` 階段以 exit code 100 失敗，請展開詳細 build log，保留失敗前的 `Err:`／`E:` 訊息；退出碼本身不足以判定是 DNS、套件來源、磁碟或其他問題。Dockerfile 在系統套件及目錄建立完成後才設定 `TMPDIR=/cache/tmp`，避免 apt 使用尚不存在的暫存目錄；build 期間先使用 base image 的 `/tmp`，不是新增主機 mount。2026-10-05 部署摘要指出 apt 階段失敗，這項順序修正仍需在 Docker 環境重新建置確認。

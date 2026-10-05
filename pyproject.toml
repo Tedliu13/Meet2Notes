@@ -49,6 +49,8 @@ dependencies = [
 [project.optional-dependencies]
 transcription = [
     "faster-whisper>=1.1.0,<2",
+    # PyAV 19 removed metadata_errors, which Faster Whisper still passes to av.open.
+    "av>=11,<19",
 ]
 nvidia-asr = [
     "torch>=2.6,<3",

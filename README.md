@@ -41,6 +41,8 @@ The deployment starts as a single private workspace, not a multi-tenant service.
 `M2N_SECRETS_KEY` must be a generated Fernet key, including its trailing `=`,
 not a password. For restart loops caused by `Incorrect padding`, follow the key
 setup and recovery instructions in [COOLIFY_DEPLOYMENT.md](COOLIFY_DEPLOYMENT.md).
+The transcription extra bounds PyAV below 19 for Faster Whisper's audio decoder;
+rebuild the image when updating this dependency constraint.
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)
