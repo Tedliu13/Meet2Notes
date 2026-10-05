@@ -28,6 +28,17 @@ speakers, and turns conversations into searchable, structured meeting notes.
 It is designed for private local AI workflows: recordings, transcripts, model
 files, and application data remain under the user's control.
 
+### This fork: CPU hosting on Coolify
+
+This fork includes a hosted deployment for **https://meet2notes.ncdrcc.com**.
+See [COOLIFY_DEPLOYMENT.md](COOLIFY_DEPLOYMENT.md) for configuration, private login,
+model storage, backups, remote MCP, and administrator verification steps.
+The Docker image contains application/runtime dependencies only; model weights are
+downloaded after deployment into a separate persistent volume. Hosted mode uses
+four job workers, disables native recording/live transcription and the live
+assistant, and retains imported-media processing and post-meeting features.
+The deployment starts as a single private workspace, not a multi-tenant service.
+
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)
 for Windows loopback, Linux monitors, and macOS virtual inputs.

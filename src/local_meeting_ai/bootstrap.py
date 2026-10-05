@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from local_meeting_ai.adapters.audio_capture import create_audio_capture_backend
+from local_meeting_ai.adapters.audio_capture.unavailable import UnavailableCaptureBackend
 from local_meeting_ai.adapters.diarization.profile_matching import (
     SherpaOnnxSpeakerProfileMatcher,
 )
@@ -212,6 +213,22 @@ def build_container(
     recordings = RecordingRepository(database)
     jobs = JobRepository(database)
     preferences = SettingsRepository(database)
+    if settings.hosted:
+        live_config = preferences.get_all().get("live_assistant", {})
+        preferences.update({
+            "live_assistant": {**live_config, "enabled": False, "preload_on_start": False}
+        })
+        if not preferences.get_all().get("hosted_initialized"):
+            preferences.update({
+                "hosted_initialized": True,
+                "faster_whisper": {
+                    **preferences.get_all().get("faster_whisper", {}),
+                    "device": "cpu", "compute_type": "int8",
+                    "cpu_threads": settings.cpu_threads,
+                    "num_workers": settings.max_heavy_jobs,
+                    "preload_on_start": False,
+                },
+            })
     _retire_removed_final_transcription_preferences(preferences)
     _retire_ollama_bge_preference(preferences)
     configured_models_directory = preferences.get_all().get("models_directory")
@@ -311,7 +328,14 @@ def build_container(
         preferences=preferences,
         queue=queue,
     )
-    resolved_capture_backend = audio_capture_backend or create_audio_capture_backend()
+    resolved_capture_backend = (
+        UnavailableCaptureBackend(
+            platform_name="Hosted",
+            reason="Recording and live transcription are disabled. Import a media file instead.",
+        )
+        if settings.hosted
+        else audio_capture_backend or create_audio_capture_backend()
+    )
     capture_service = LiveCaptureService(
         backend=resolved_capture_backend,
         meetings=meeting_service,

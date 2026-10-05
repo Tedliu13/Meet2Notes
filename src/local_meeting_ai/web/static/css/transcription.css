@@ -1060,6 +1060,10 @@
   gap: 9px;
 }
 
+body[data-hosted="true"] .source-mode-grid {
+  grid-template-columns: 1fr;
+}
+
 .source-mode-card {
   position: relative;
   display: grid;

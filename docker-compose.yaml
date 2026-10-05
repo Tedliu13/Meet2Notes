@@ -1,0 +1,49 @@
+services:
+  meet2notes:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    expose:
+      - "8765"
+    environment:
+      M2N_HOSTED: "true"
+      M2N_HOST: 0.0.0.0
+      M2N_PORT: "8765"
+      M2N_ALLOWED_HOSTS: ${M2N_ALLOWED_HOSTS:-meet2notes.ncdrcc.com}
+      M2N_AUTH_USERNAME: ${M2N_AUTH_USERNAME:?Set a private login username}
+      M2N_AUTH_PASSWORD: ${M2N_AUTH_PASSWORD:?Set a strong private login password}
+      M2N_SECRETS_KEY: ${M2N_SECRETS_KEY:?Set a Fernet encryption key}
+      M2N_DATA_DIR: /data
+      M2N_MODELS_DIR: /models
+      M2N_MAX_UPLOAD_MB: ${M2N_MAX_UPLOAD_MB:-0}
+      M2N_MAX_HEAVY_JOBS: ${M2N_MAX_HEAVY_JOBS:-4}
+      M2N_CPU_THREADS: ${M2N_CPU_THREADS:-2}
+      M2N_LOG_LEVEL: ${M2N_LOG_LEVEL:-INFO}
+      M2N_PYANNOTE_TOKEN: ${M2N_PYANNOTE_TOKEN:-}
+      OMP_NUM_THREADS: ${M2N_CPU_THREADS:-2}
+      OPENBLAS_NUM_THREADS: ${M2N_CPU_THREADS:-2}
+      MKL_NUM_THREADS: ${M2N_CPU_THREADS:-2}
+    cpus: ${M2N_CPU_LIMIT:-8}
+    mem_limit: ${M2N_MEMORY_LIMIT:-32g}
+    pids_limit: 512
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - meet2notes-data:/data
+      - meet2notes-models:/models
+      - meet2notes-cache:/cache
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  meet2notes-data:
+  meet2notes-models:
+  meet2notes-cache:

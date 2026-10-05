@@ -30,6 +30,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
+    "cryptography>=44,<47",
     "aiofiles>=24.1.0,<25",
     "fastembed>=0.8.0,<1",
     "fastapi>=0.115.0,<1",

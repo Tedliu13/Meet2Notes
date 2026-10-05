@@ -139,7 +139,7 @@
       </span>
       <div class="canvas-audio-copy">
         <strong id="audio-filename">Recording</strong>
-        <span>Meeting audio · stored locally</span>
+        <span>{{ 'Meeting audio · stored on this server' if hosted else 'Meeting audio · stored locally' }}</span>
       </div>
       <audio id="meeting-audio" controls preload="metadata"></audio>
       <span class="save-indicator" id="editor-save-state"><i></i> Saved</span>
@@ -187,7 +187,7 @@
           <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 18h38M13 31h26M13 44h32"/><path d="M47 40a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z"/><path d="m53 52 7 7"/></svg>
         </span>
         <h2>Your transcript will appear here</h2>
-        <p>Start with a microphone, system audio, an audio interface, or a media file.</p>
+        <p>{{ 'Import an audio or video file to transcribe on the server.' if hosted else 'Start with a microphone, system audio, an audio interface, or a media file.' }}</p>
         {% if request.query_params.get('new') == '1' %}
         <button type="button" class="button primary" data-empty-start>Start transcription</button>
         {% endif %}
@@ -329,8 +329,8 @@
     <div class="modal-header capture-modal-header">
       <div>
         <span class="eyebrow">New transcription</span>
-        <h2>Choose your audio sources</h2>
-        <p>For a video call, combine your microphone with system audio.</p>
+        <h2>{{ 'Import a media file' if hosted else 'Choose your audio sources' }}</h2>
+        <p>{{ 'Upload audio or video for transcription and meeting notes.' if hosted else 'For a video call, combine your microphone with system audio.' }}</p>
       </div>
       <button type="button" class="icon-button close-button" data-close-transcription aria-label="Close">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
@@ -398,7 +398,8 @@
 
     <div class="capture-privacy-note">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg>
-      <span><strong>Local and private.</strong> Recording never starts without this button and no audio is uploaded.</span>
+      {% if hosted %}<span data-i18n="hosted.upload_privacy">Your file is uploaded to this private server. Remote AI processing occurs when configured.</span>
+      {% else %}<span><strong>Local and private.</strong> Recording never starts without this button and no audio is uploaded.</span>{% endif %}
     </div>
 
     <div class="modal-actions capture-modal-actions">

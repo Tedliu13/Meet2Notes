@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 
 import httpx
@@ -9,6 +10,21 @@ from local_meeting_ai.mcp.configuration import desktop_client_configurations
 from local_meeting_ai.mcp.discovery import DiscoveryError, candidate_base_urls
 from local_meeting_ai.mcp.gateway import GatewayError, Meet2NotesGateway
 from local_meeting_ai.mcp.server import mcp
+
+
+@pytest.mark.asyncio
+async def test_gateway_sends_remote_basic_auth(monkeypatch) -> None:
+    monkeypatch.setenv("M2N_MCP_AUTH_USERNAME", "owner")
+    monkeypatch.setenv("M2N_MCP_AUTH_PASSWORD", "private-test")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        expected = "Basic " + base64.b64encode(b"owner:private-test").decode()
+        assert request.headers["Authorization"] == expected
+        return httpx.Response(200, json={"enabled": False})
+
+    gateway = Meet2NotesGateway(base_urls=["https://meet2notes.ncdrcc.com"],
+                               transport=httpx.MockTransport(handler))
+    assert (await gateway.status()).connected is True
 
 
 @pytest.mark.asyncio

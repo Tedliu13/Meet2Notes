@@ -1,5 +1,6 @@
 (() => {
   "use strict";
+  const hosted = document.body.dataset.hosted === "true";
 
   const {
     api,
@@ -1762,7 +1763,7 @@
             <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 18h38M13 31h26M13 44h32"/><path d="M47 40a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z"/><path d="m53 52 7 7"/></svg>
           </span>
           <h2>Your transcript will appear here</h2>
-          <p>Start with a microphone, system audio, an audio interface, or a media file.</p>
+          <p>${hosted ? "Import an audio or video file to transcribe on the server." : "Start with a microphone, system audio, an audio interface, or a media file."}</p>
           ${startActionAvailable ? '<button type="button" class="button primary" data-empty-start>Start transcription</button>' : ""}
         </div>`;
   }
@@ -1777,7 +1778,13 @@
 
   function openStartDialog() {
     document.querySelector("#transcription-form").reset();
-    document.querySelector('input[name="source-mode"][value="microphone"]').checked = true;
+    document.querySelectorAll('input[name="source-mode"]').forEach((input) => {
+      input.checked = input.value === (hosted ? "file" : "microphone");
+      if (hosted && input.value !== "file") {
+        input.disabled = true;
+        input.closest("label").hidden = true;
+      }
+    });
     renderSources();
     resetFilePicker();
     startDialog.showModal();

@@ -119,7 +119,10 @@ def mcp_status(container: ContainerDependency) -> dict[str, bool]:
 
 @router.get("/mcp/configuration", response_model=McpConfigurationResponse)
 def mcp_configuration(container: ContainerDependency) -> McpConfigurationResponse:
-    configurations = desktop_client_configurations()
+    configurations = desktop_client_configurations(
+        remote_base_url=f"https://{container.settings.allowed_hosts.split(',')[0].strip()}"
+        if container.settings.hosted else None
+    )
     claude = configurations["claude-desktop"]
     codex = configurations["codex-chatgpt"]
     return McpConfigurationResponse(
@@ -339,6 +342,7 @@ def info(container: ContainerDependency) -> dict[str, Any]:
         "name": container.settings.app_name,
         "version": __version__,
         "platform": platform.system(),
+        "hosted": container.settings.hosted,
         "python": platform.python_version(),
         "data_directory": str(container.paths.root),
         "models_directory": str(container.paths.models),
@@ -392,6 +396,8 @@ def select_storage_location(location: str, container: ContainerDependency) -> di
 @router.post("/models/summary/select-file")
 def select_gguf_file(container: ContainerDependency) -> dict[str, str | None]:
     """Open the native file picker without uploading or copying the user's GGUF."""
+    if container.settings.hosted:
+        raise ValidationError("Select an installed GGUF from the server model list")
     try:
         import tkinter as tk
         from tkinter import filedialog
@@ -423,6 +429,15 @@ def select_embedding_gguf_file(
     container: ContainerDependency,
 ) -> dict[str, str | None]:
     return select_gguf_file(container)
+
+
+@router.get("/models/gguf-files")
+def installed_gguf_files(container: ContainerDependency) -> dict[str, list[str]]:
+    root = container.paths.models.resolve()
+    return {"files": sorted(
+        str(path.resolve()) for path in root.rglob("*.gguf")
+        if path.is_file() and path.resolve().is_relative_to(root)
+    )}
 
 
 @router.post("/settings/data-directory/schedule")

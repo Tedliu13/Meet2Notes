@@ -1183,6 +1183,16 @@ svg {
   display: none !important;
 }
 
+body[data-hosted="true"] .engine-card-actions[hidden],
+body[data-hosted="true"] .port-setting[hidden],
+body[data-hosted="true"] .source-mode-card[hidden],
+body[data-hosted="true"] .mcp-config-path[hidden],
+body[data-hosted="true"] [data-settings-tab][hidden],
+body[data-hosted="true"] [data-select-folder][hidden],
+body[data-hosted="true"] [data-mcp-open][hidden] {
+  display: none !important;
+}
+
 .toast-region {
   position: fixed;
   z-index: 100;

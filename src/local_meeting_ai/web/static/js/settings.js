@@ -3,6 +3,26 @@
 
   const { api, toast, applyTheme, escapeHTML, t } = window.Meet2Notes;
   const $ = (selector) => document.querySelector(selector);
+  const hosted = document.body.dataset.hosted === "true";
+
+  async function selectGguf(endpoint) {
+    if (!hosted) return api(endpoint, { method: "POST" });
+    const { files } = await api("/api/models/gguf-files");
+    if (!files.length) throw new Error("Install a GGUF model from the model catalog first.");
+    const choice = window.prompt(
+      files.map((file, index) => `${index + 1}. ${file}`).join("\n") + "\nSelect a model number:",
+      "1",
+    );
+    if (choice === null) return { file: null };
+    const index = Number(choice) - 1;
+    if (!Number.isInteger(index) || !files[index]) throw new Error("Invalid model selection.");
+    return { file: files[index] };
+  }
+
+  if (hosted) {
+    document.querySelectorAll('[data-settings-tab="live-assistant"], [data-select-folder], [data-mcp-open], .mcp-config-path')
+      .forEach((control) => { control.hidden = true; });
+  }
 
   const computeTypes = [
     "auto",
@@ -2560,7 +2580,7 @@
   $("#ai-custom-gguf-browse")?.addEventListener("click", async (event) => {
     event.currentTarget.disabled = true;
     try {
-      const selected = await api("/api/models/summary/select-file", { method: "POST" });
+      const selected = await selectGguf("/api/models/summary/select-file");
       if (selected.file) {
         $("#ai-custom-gguf-path").value = selected.file;
         toast("GGUF file selected. Save the AI settings to use it.");
@@ -2575,7 +2595,7 @@
   $("#rag-custom-gguf-browse")?.addEventListener("click", async (event) => {
     event.currentTarget.disabled = true;
     try {
-      const selected = await api("/api/models/embeddings/select-file", { method: "POST" });
+      const selected = await selectGguf("/api/models/embeddings/select-file");
       if (selected.file) {
         $("#rag-custom-gguf-path").value = selected.file;
         toast("Embedding GGUF selected. Save the RAG settings before loading it.");

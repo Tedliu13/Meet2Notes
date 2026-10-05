@@ -1,4 +1,5 @@
 {
+  "hosted.upload_privacy": "Your file is uploaded to this private server. Remote AI processing occurs when configured.",
   "settings.nemotron_diarization_description": "Local speaker analysis with a continuous speaker cache for long meetings.",
   "settings.nemotron_diarization_note": "Up to 8 speakers, detected automatically. CPU or CUDA. Uses a private, pinned preview runtime. Saved voice matching is supported.",
   "assistant.loading_model": "Preparing the model…",
@@ -86,6 +87,7 @@
   "mcp.status_enabled": "Enabled · desktop clients can use the read-only Meet2Notes tools while this app is running.",
   "mcp.title": "MCP desktop clients",
   "literal": {
+    "Your file is uploaded to this private server. Remote AI processing occurs when configured.": "Your file is uploaded to this private server. Remote AI processing occurs when configured.",
     "Automatic context": "Automatic context",
     "Choose a provider model or Custom. Use an API key for the selected provider.": "Choose a provider model or Custom. Use an API key for the selected provider.",
     "Model preset": "Model preset",

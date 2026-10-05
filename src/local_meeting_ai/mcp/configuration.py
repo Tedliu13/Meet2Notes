@@ -36,13 +36,24 @@ def desktop_client_configurations(
     home: Path | None = None,
     environment: Mapping[str, str] | None = None,
     python_executable: str | None = None,
+    remote_base_url: str | None = None,
 ) -> dict[str, DesktopClientConfiguration]:
     platform_name = platform_name or sys.platform
     home = home or Path.home()
     environment = environment or os.environ
-    command = str(Path(python_executable or sys.executable).resolve())
+    command = (
+        "python" if remote_base_url else str(Path(python_executable or sys.executable).resolve())
+    )
     args = ["-m", "local_meeting_ai.mcp.server"]
-    server = {"command": command, "args": args}
+    server: dict[str, object] = {"command": command, "args": args}
+    remote_environment = {
+        "M2N_MCP_BASE_URL": remote_base_url or "",
+        "M2N_MCP_ALLOW_REMOTE": "1",
+        "M2N_MCP_AUTH_USERNAME": "<your login username>",
+        "M2N_MCP_AUTH_PASSWORD": "<your login password>",
+    }
+    if remote_base_url:
+        server["env"] = remote_environment
 
     claude_path = _claude_config_path(platform_name, home, environment)
     claude_content = json.dumps(
@@ -56,6 +67,10 @@ def desktop_client_configurations(
         f"command = {json.dumps(command)}\n"
         f"args = {json.dumps(args)}\n"
     )
+    if remote_base_url:
+        codex_content += f"\n[mcp_servers.{MCP_SERVER_NAME}.env]\n" + "".join(
+            f"{name} = {json.dumps(value)}\n" for name, value in remote_environment.items()
+        )
     return {
         "claude-desktop": DesktopClientConfiguration(
             client_id="claude-desktop",

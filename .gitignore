@@ -2,6 +2,11 @@
 .env.*
 !.env.example
 .venv/
+.uv-cache/
+.python/
+credentials.enc
+*.pem
+*.key
 .pinokio/
 .pinokio-installed
 __pycache__/

@@ -14,7 +14,7 @@
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="/static/css/themes.css?v={{ asset_version }}">
 </head>
-<body data-page="{{ page }}">
+<body data-page="{{ page }}" data-hosted="{{ 'true' if hosted else 'false' }}">
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <a class="brand" id="sidebar-brand" href="/" aria-label="Meet2Notes home" data-i18n-aria-label="brand.home">
@@ -62,7 +62,7 @@
             <span class="engine-card-loading" data-i18n="engine.checking">Checking…</span>
           </div>
           <div class="hardware-status-list" id="global-hardware-list"></div>
-          <div class="engine-card-actions">
+          <div class="engine-card-actions" {% if hosted %}hidden{% endif %}>
             <button class="engine-card-shutdown" id="application-shutdown" type="button">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.35 6.35a8 8 0 1 0 11.3 0"/></svg>
               <span data-i18n="engine.shutdown">Shut down</span>

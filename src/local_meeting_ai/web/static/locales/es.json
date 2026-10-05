@@ -1,4 +1,5 @@
 {
+  "hosted.upload_privacy": "El archivo se carga en este servidor privado. El procesamiento remoto con IA se utiliza cuando está configurado.",
   "settings.nemotron_diarization_description": "Análisis local de hablantes con una caché continua de voces para reuniones largas.",
   "settings.nemotron_diarization_note": "Hasta 8 hablantes, detectados automáticamente. CPU o CUDA. Usa un entorno privado con una versión preliminar fijada. Compatible con el reconocimiento de voces guardadas.",
   "assistant.loading_model": "Preparando el modelo…",
@@ -86,6 +87,7 @@
   "mcp.status_enabled": "Activado · los clientes de escritorio pueden usar las herramientas de solo lectura de Meet2Notes mientras la aplicación esté ejecutándose.",
   "mcp.title": "Clientes MCP de escritorio",
   "literal": {
+    "Your file is uploaded to this private server. Remote AI processing occurs when configured.": "El archivo se carga en este servidor privado. El procesamiento remoto con IA se utiliza cuando está configurado.",
     "Automatic context": "Contexto automático",
     "Choose a provider model or Custom. Use an API key for the selected provider.": "Elige un modelo del proveedor o Personalizado. Usa una clave API del proveedor seleccionado.",
     "Model preset": "Modelo predefinido",

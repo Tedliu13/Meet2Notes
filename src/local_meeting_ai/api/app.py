@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from local_meeting_ai import __version__
+from local_meeting_ai.api.hosted import HostedMiddleware
 from local_meeting_ai.api.library_routes import router as library_router
 from local_meeting_ai.api.live_assistant_routes import router as live_assistant_router
 from local_meeting_ai.api.routes import router as api_router
@@ -54,6 +55,25 @@ def create_app(
     audio_range_exporter: AudioRangeExporter | None = None,
 ) -> FastAPI:
     resolved_settings = settings or AppSettings()
+    if resolved_settings.hosted:
+        if not all((
+            resolved_settings.auth_username,
+            resolved_settings.auth_password,
+            resolved_settings.secrets_key,
+            resolved_settings.allowed_hosts,
+        )):
+            raise ValueError("Hosted mode requires auth credentials, secrets key and allowed hosts")
+        import keyring
+
+        from local_meeting_ai.infrastructure.hosted_credentials import EncryptedFileKeyring
+        from local_meeting_ai.paths import AppPaths
+
+        keyring.set_keyring(
+            EncryptedFileKeyring(
+                AppPaths.from_settings(resolved_settings).root / "secrets" / "credentials.enc",
+                resolved_settings.secrets_key,
+            )
+        )
     container = build_container(
         resolved_settings,
         transcription_engine=transcription_engine,
@@ -88,6 +108,8 @@ def create_app(
                 ("Live AI Assistant", container.live_assistant_service.preload_default),
                 ("selected embedding model", container.rag_service.preload_default),
             ):
+                if resolved_settings.hosted and engine_name == "Live AI Assistant":
+                    continue
                 logger.info("Checking %s preload configuration", engine_name)
                 try:
                     await preloader()
@@ -140,6 +162,11 @@ def create_app(
     app.state.shutdown_requested = False
 
     allowed_hosts = ["127.0.0.1", "localhost", "testserver", resolved_settings.host]
+    allowed_hosts.extend(
+        host.strip() for host in resolved_settings.allowed_hosts.split(",") if host.strip()
+    )
+    if resolved_settings.hosted:
+        app.add_middleware(HostedMiddleware, settings=resolved_settings)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(dict.fromkeys(allowed_hosts)))
 
     @app.middleware("http")
@@ -150,7 +177,12 @@ def create_app(
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(self), geolocation=()"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=()" if resolved_settings.hosted
+            else "camera=(), microphone=(self), geolocation=()"
+        )
+        if resolved_settings.hosted:
+            response.headers["Cache-Control"] = "no-store"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; img-src 'self' data:; style-src 'self'; "
             "script-src 'self'; worker-src 'self' blob:; connect-src 'self'"
@@ -189,6 +221,7 @@ def create_app(
     static_dir = package_root / "web" / "static"
     template_dir = package_root / "web" / "templates"
     templates = Jinja2Templates(directory=template_dir)
+    templates.env.globals["hosted"] = resolved_settings.hosted
     latest_static_change = max(
         (
             path.stat().st_mtime_ns

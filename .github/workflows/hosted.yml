@@ -1,0 +1,76 @@
+name: hosted-container
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      M2N_AUTH_USERNAME: ci-user
+      M2N_AUTH_PASSWORD: ci-test-only-password
+      M2N_CPU_LIMIT: "2"
+      M2N_MEMORY_LIMIT: "4g"
+    steps:
+      - uses: actions/checkout@v6
+      - name: Generate ephemeral test encryption key
+        run: |
+          python - <<'PY'
+          import base64, os, secrets
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write('M2N_SECRETS_KEY=' + base64.urlsafe_b64encode(secrets.token_bytes(32)).decode() + '\n')
+          PY
+      - run: docker compose config --quiet
+      - run: docker compose build meet2notes
+      - name: Container smoke test without model downloads
+        run: |
+          docker compose up -d --wait --wait-timeout 180
+          docker compose exec -T meet2notes python - <<'PY'
+          import base64, json, os, urllib.request, urllib.error
+          from pathlib import Path
+          url = 'http://127.0.0.1:8765'
+          assert json.load(urllib.request.urlopen(url + '/api/health'))['status'] == 'ok'
+          try:
+              urllib.request.urlopen(url + '/api/meetings')
+              raise AssertionError('Missing authentication')
+          except urllib.error.HTTPError as error:
+              assert error.code == 401
+          token = base64.b64encode((os.environ['M2N_AUTH_USERNAME'] + ':' + os.environ['M2N_AUTH_PASSWORD']).encode()).decode()
+          request = urllib.request.Request(url + '/api/audio/sources', headers={'Authorization': 'Basic ' + token})
+          assert json.load(urllib.request.urlopen(request))['capability']['available'] is False
+          headers = {'Authorization': 'Basic ' + token, 'Content-Type': 'application/json'}
+          request = urllib.request.Request(url + '/api/meetings', data=json.dumps({'title': 'CI persistence'}).encode(), headers=headers, method='POST')
+          json.load(urllib.request.urlopen(request))
+          request = urllib.request.Request(url + '/api/settings/summary-api-key', data=json.dumps({'api_key': 'ci-provider-test-value'}).encode(), headers=headers, method='PUT')
+          assert json.load(urllib.request.urlopen(request))['configured'] is True
+          assert b'ci-provider-test-value' not in Path('/data/secrets/credentials.enc').read_bytes()
+          Path('/models/ci-persistence.txt').write_text('model-volume')
+          PY
+      - name: Verify data, model storage and credentials survive restart
+        run: |
+          docker compose restart meet2notes
+          docker compose up -d --wait --wait-timeout 180
+          docker compose exec -T meet2notes python - <<'PY'
+          import base64, json, os, urllib.request
+          from pathlib import Path
+          token = base64.b64encode((os.environ['M2N_AUTH_USERNAME'] + ':' + os.environ['M2N_AUTH_PASSWORD']).encode()).decode()
+          headers = {'Authorization': 'Basic ' + token}
+          request = urllib.request.Request('http://127.0.0.1:8765/api/meetings', headers=headers)
+          assert any(meeting['title'] == 'CI persistence' for meeting in json.load(urllib.request.urlopen(request)))
+          request = urllib.request.Request('http://127.0.0.1:8765/api/settings/summary-api-key', headers=headers)
+          assert json.load(urllib.request.urlopen(request))['configured'] is True
+          assert Path('/models/ci-persistence.txt').read_text() == 'model-volume'
+          assert not list(Path('/models').rglob('*.gguf'))
+          assert not list(Path('/models').rglob('*.onnx'))
+          PY
+      - name: Logs
+        if: failure()
+        run: docker compose logs --tail=100
+      - name: Stop CI containers
+        if: always()
+        run: docker compose down

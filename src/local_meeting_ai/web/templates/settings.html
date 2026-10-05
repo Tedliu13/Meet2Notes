@@ -71,7 +71,7 @@
               <span class="settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v5M12 16v5M4.2 7.2l3.5 3.5M16.3 13.3l3.5 3.5M3 12h5M16 12h5M4.2 16.8l3.5-3.5M16.3 10.7l3.5-3.5"/><circle cx="12" cy="12" r="4"/></svg></span>
               <div><strong>Local web address</strong><small>This changes the local HTTP port. A restart is required before the new address is used.</small></div>
             </div>
-            <label class="inline-setting port-setting"><span>Port</span><input id="http-port" type="number" min="1024" max="65535" step="1" inputmode="numeric"><small id="port-restart-note">Current address is loading…</small></label>
+            <label class="inline-setting port-setting" {% if hosted %}hidden{% endif %}><span>Port</span><input id="http-port" type="number" min="1024" max="65535" step="1" inputmode="numeric"><small id="port-restart-note">Current address is loading…</small></label>
           </section>
           <div class="settings-actions"><button class="button primary" type="submit">Save general settings</button></div>
         </form>

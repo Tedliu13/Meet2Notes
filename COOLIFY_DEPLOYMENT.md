@@ -1,0 +1,135 @@
+# Meet2Notes 部署至 NCDRCC Coolify
+
+本次目標：`https://meet2notes.ncdrcc.com`。平台管理介面：`https://deploy.ncdrcc.com`。
+無既有資料須搬移。VM 為 16 CPU／128 GB RAM、無 GPU；平台文件列出 14 TB SSD、Docker root `/data/docker`、Traefik 80/443。Coolify 版本尚未提供。
+
+## 1. 部署與登入
+
+1. 管理者在 Coolify 建立 GitHub Application，來源 `Tedliu13/Meet2Notes`，選擇已包含本次修改的 branch／commit。
+2. Build Pack 選 **Docker Compose**，Base Directory `/`，Compose Location `/docker-compose.yaml`。
+3. 載入 Compose 後，meet2notes service 的 Domain 設為 `https://meet2notes.ncdrcc.com:8765`；`:8765` 指容器內部路由 port，使用者仍開啟不帶 port 的正式 HTTPS 網址。
+4. 填入下表三個必要 secrets（runtime variables），確認 storage、資源限制及 health check 後由管理者部署。
+5. 瀏覽器會顯示 HTTP Basic 登入視窗。所有頁面、API、靜態資源均需登入，只有 `/api/health` 公開。
+
+這是個人、單一 workspace 的部署；共用帳密者可以存取全部會議及設定。正式導入多人使用前，需另行設計帳號、角色、資料歸屬與隔離，不能把 Basic Auth 視為多租戶支援。
+
+參考：[Coolify Compose](https://coolify.io/docs/applications/builds/docker-compose)、[持久化儲存](https://coolify.io/docs/applications/configuration/persistent-storage)。
+
+## 2. 環境變數
+
+| 變數 | 必要性／設定 |
+|---|---|
+| `M2N_AUTH_USERNAME` | 必要，個人登入帳號 |
+| `M2N_AUTH_PASSWORD` | 必要，管理者設定強密碼；不得提交 Git |
+| `M2N_SECRETS_KEY` | 必要，Fernet key；獨立於資料備份保管，重新部署保持不變 |
+| `M2N_ALLOWED_HOSTS` | 預設 `meet2notes.ncdrcc.com`，多個 hostname 用逗號分隔 |
+| `M2N_MAX_UPLOAD_MB` | 預設 `0`，不設應用大小上限；可設正整數限制 |
+| `M2N_MAX_HEAVY_JOBS` | 預設 `4`，範圍 1–4，持久化 job queue workers |
+| `M2N_CPU_LIMIT` | 預設 `8` CPU，留資源給共用 VM |
+| `M2N_MEMORY_LIMIT` | 預設 `32g`；管理者依實際模型及其他專案調整 |
+| `M2N_CPU_THREADS` | 預設 `2`；首次 Hosted 啟動設定 Faster Whisper CPU threads，亦控制 BLAS/OMP threads |
+| `M2N_LOG_LEVEL` | 預設 `INFO` |
+| `M2N_PYANNOTE_TOKEN` | 選用，下載 gated Pyannote 模型時需要先接受條款 |
+
+生成 `M2N_SECRETS_KEY`（在可信任的 Python 環境執行，將結果只填入 Coolify）：
+
+```bash
+python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+```
+
+不要公開 key 或密碼。API key 可在 Settings 設定；原有 keyring 操作在 Hosted 模式改由加密檔案後端保存 `/data/secrets/credentials.enc`，包含摘要 provider 與 Webhook 密鑰。若要以 provider 自訂環境變數讀取 API key，需自行在 Compose 加入該變數引用，再由 Coolify 填入正式值。
+
+## 3. 儲存與 mounts 稽核
+
+| Type | Source（Compose volume 名稱） | Destination | Read-only | 用途 |
+|---|---|---|---|---|
+| volume | `meet2notes-data` | `/data` | false | SQLite、會議原檔／標準化音訊／匯出、聲紋、加密 secrets、logs |
+| volume | `meet2notes-models` | `/models` | false | 所有模型權重、HF/Torch 模型快取與私有 runtimes |
+| volume | `meet2notes-cache` | `/cache` | false | 可重建快取、multipart 暫存檔 `/cache/tmp` |
+
+實際 named volume 名稱會帶 Compose/Coolify project prefix。Docker 依平台 root 將其放於 SSD，禁止直接指定 `/data/docker/volumes/...`。容器 UID/GID `10001:10001`；首次空 named volume 由 image 初始化目錄內容與擁有者。不要 chmod 777。
+
+沒有 host ports、host bind mounts、Docker socket、host network、privileged。服務 drop 所有 Linux capabilities 並啟用 no-new-privileges。Compose 保留 storage 名稱；不要更換 project identity、刪除 volumes 或使用 `down -v`，以免資料遺失。
+
+## 4. Build、啟動與模型
+
+- Build：`docker compose build meet2notes`（首次需下載大型 CPU 執行套件，llama.cpp 可能編譯，時間較長）。
+- Start：image CMD `meet2notes --host 0.0.0.0 --port 8765 --no-browser`。
+- 內部 port：`8765`，由 Coolify 既有 Traefik 提供 HTTPS。
+- Health：GET `/api/health`，確認 `status=ok`；30 秒檢查、5 秒 timeout、120 秒 startup grace、3 次失敗。
+- Docker base 固定 `python:3.12.12-slim-bookworm`；Torch 安裝 CPU wheels。image 包含 FFmpeg 及各引擎執行依賴，不包含模型權重。
+- `.dockerignore` 採 build context 允許清單，排除本機模型、資料、secrets、虛擬環境。
+
+部署後，在 Settings 安裝模型。先用 Faster Whisper small CPU/int8 驗證完整流程，再依實際中文錄音品質選 medium／large-v3。四個 queue workers 並不保證全部引擎四路同時推論：首次 Hosted 設定 Faster Whisper `num_workers=4`／每 worker 2 threads；其餘引擎依原本 executor／序列化限制處理。模型下載、解碼及推論都消耗 CPU/RAM，需實測長錄音並觀察 VM。
+
+Settings 可下載本地 GGUF LLM，或設定外部 API。Ollama 若部署為另一個 container，使用容器 hostname／Coolify Internal URL，不能用 `localhost` 指向它。自訂 GGUF 的 Browse 改為列出 `/models` 已安裝檔案；可先透過模型目錄下載模型，或由管理者匯入獨立模型 volume。
+
+啟動不自動下載模型，也不需要先取得模型才能通過 health check。Nemotron 等引擎按原有流程在 model volume 建立 private runtime；不要刪除正在使用的模型或 runtime。
+
+外掛仍以 Python entry points 管理：將選定套件加入 Docker build 的 dependency installation，再重新建置，Settings rescan／enable。不要依賴進入執行中容器的臨時 pip install 來保存外掛。
+
+## 5. 功能差異與上傳
+
+- Hosted 停用原生音訊 capture、即時轉錄及 Live Assistant 寫入／啟動，保留讀取相容性。會後摘要、問答、講者、RAG、匯出及處理事件 Webhook 沿用原有流程。
+- 桌面 folder picker、資料／模型位置搬移、桌面 MCP config 開啟、CUDA runtime 安裝與應用關機入口停用；持久化位置、重啟、更新改由 Coolify 管理。
+- 原有 desktop 模式保持可用，`M2N_HOSTED=false` 不要求登入 secrets。
+- `0` 取消應用檔案大小限制；仍驗證檔案格式、空檔案及 FFmpeg 媒體結構。
+- Multipart 會先 spool 到 `/cache/tmp`，再寫原檔，須預留暫存、原檔、標準化 WAV、exports 與四個 jobs 的空間。16 kHz mono PCM 約 115 MB／小時，原檔另計；模型與 cache 的容量依選擇增加。
+- Cloudflare Proxy 對單次 request body 有方案上限。若要單次大檔上傳，由管理者將此 DNS record 設為 **DNS only**，仍經 Coolify HTTPS；若必須保留 Proxy，需要另作分段上傳。本版本尚未實作分段／續傳。
+- 大檔案也需檢查 Traefik 及上游網路的 upload timeout；不在 repository 修改共用 proxy。正式上線測試最大預期錄音大小。
+
+參考：[Cloudflare 413／上傳限制](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/4xx-client-error/error-413/)。
+
+## 6. SQLite、migration 與備份
+
+本專案保留既有 SQLite／FTS5／向量儲存，不需要 `DATABASE_URL`、PostgreSQL resource 或 extensions。這是原有 fork 的容器化例外；不能只設定 PostgreSQL URL 就切換資料庫。
+
+Migration 在啟動時由 `MigrationRunner.apply()` 執行編號 SQL，已套用版本記錄於 schema_migrations，可重複啟動，不 drop 現有表。只運行一個 app process／一個 replica，禁止多 container 共用同一 writable SQLite volume；四個 jobs 由同一 process 處理。
+
+每日備份 `/data`，保留 7–14 份並同步異地；模型可重下載，模型清單／設定應隨資料保存。大型自訂模型另備份 `/models`。`/cache` 不須備份，僅可在停止服務後清理。重要音訊位於 `/data/meetings`，不是 cache。
+
+一致性備份／還原由管理者使用 Coolify storage backup 或核准的備份工具：
+
+1. 備份前暫停匯入與修改，等待 jobs 完成；停止 app 後備份整個 data volume，可取得資料庫及音訊一致的時間點。若採在線備份，SQLite 必須使用 Python `sqlite3.Connection.backup()` 等 backup API，不可只複製 `app.db` 而漏掉 WAL。
+2. 將 `/data` 備份保存到管理者核准 `/data/backups/meet2notes/` 或異地 storage；不要由 app 自行新增 host mount。
+3. 獨立安全保存 `M2N_SECRETS_KEY`；失去此 key 就無法還原 provider／Webhook secrets。不要把 key 與加密檔案一起公開。
+4. 還原時停止 app，備份目前狀態，還原到對應 data volume，維持 UID/GID 10001、容器內 `/data` 與 `/models` 路徑及相同 secrets key。
+5. 以相容版本啟動，驗證 health、會議、音訊播放、摘要／RAG 及密鑰可讀。migration 前保留快照；rollback image 不會撤銷 database migration，必要時還原配套資料備份。
+
+上線前至少以一份測試會議驗證重新部署資料保留及備份／還原；目前尚未在正式平台驗證。
+
+## 7. 遠端 MCP
+
+保留原有 read-only stdio MCP gateway。桌面客戶端須本地安裝此版本 Meet2Notes 的 MCP runtime，設定：
+
+```text
+M2N_MCP_BASE_URL=https://meet2notes.ncdrcc.com
+M2N_MCP_ALLOW_REMOTE=1
+M2N_MCP_AUTH_USERNAME=<登入帳號>
+M2N_MCP_AUTH_PASSWORD=<登入密碼>
+```
+
+命令為本地 Python `-m local_meeting_ai.mcp.server`，不是容器內 Python 路徑。Hosted Settings 會產生使用 `python` 與遠端變數的 JSON/TOML 範本；先在桌面安裝此版本，再將 command 改為該本地環境的 Python 完整路徑並填入登入資訊。畫面不顯示正式密碼。MCP access 仍由 Settings 開關控制。
+
+## 8. 管理者上線核對
+
+- 確認 branch/commit、Domain、三個 secrets，並確認不將 secret 設為 build arguments。
+- 確認 named volumes、8 CPU／32g 起始限制符合平台配額，持久化 UID 正確。
+- 確認 Cloudflare Proxy/DNS only 選擇及大檔上傳；Traefik/SSE 串流可用。
+- 確認 HTTPS 無登入不可讀取資料，登入後匯入、轉錄、講者、摘要、RAG、匯出正常。
+- 驗證重新部署、四個工作、取消、模型 persistence、加密 credential persistence、備份與還原。
+- 容器 logs `10m × 3`，應用檔案 logs `5 MiB × 4` 輪替。
+- 本機尚無 Docker CLI，必須在有 Docker 的驗證環境執行 `docker compose config`、image build 與 container smoke test，成功後才正式上線。
+
+本次僅準備 repository，不代表正式部署完成。
+
+## 9. 本次驗證結果（2026-10-05）
+
+- API、migration、storage、paths 與加密 credential 這輪測試：85 passed、1 deselected。
+- MCP 與 Hosted／credential／storage 專項：20 passed（部分與上一輪重疊）；另外確認 3 MiB multipart 檔案可在不限大小設定下匯入。
+- 前端：20 passed，包含 Hosted 選檔與桌面麥克風預設操作的回歸測試；修改的 JavaScript 語法檢查通過。
+- `ruff check .` 通過；`mypy src` 通過（117 source files）；介面翻譯目錄與 `git diff --check` 通過。
+- Compose／workflow YAML 可解析，CI 內嵌 Python 可編譯；三個 named volumes、無 host ports／危險 mounts 及變更檔案未含私有資料／模型的檢查通過。
+- 1 項既有 FastEmbed 原生模型目錄測試未執行：本機未安裝完整 ONNX Runtime／Pillow／tokenizers 執行依賴；未下載模型權重。
+- 本機無 Docker CLI／daemon，未執行 `docker compose config`、Docker image build 或容器 smoke test。新增的 `hosted-container` GitHub Actions 將驗證這些項目，以及 container restart 後的資料、model volume 與加密 credential persistence；目前尚未執行該 workflow。
+- 正式 Coolify／DNS／HTTPS、大檔案端到端上傳、四路實際模型推論、資源峰值與備份／還原仍由管理者於上線前驗證。

@@ -22,8 +22,14 @@ class AppSettings(BaseSettings):
     data_dir: Path | None = None
     models_dir: Path | None = None
     log_level: str = "INFO"
-    max_upload_mb: int = Field(default=2048, ge=1, le=51200)
+    max_upload_mb: int = Field(default=2048, ge=0)
     max_heavy_jobs: int = Field(default=1, ge=1, le=4)
+    cpu_threads: int = Field(default=2, ge=1, le=64)
+    hosted: bool = False
+    allowed_hosts: str = ""
+    auth_username: str = ""
+    auth_password: str = Field(default="", repr=False)
+    secrets_key: str = Field(default="", repr=False)
     ffmpeg_path: Path | None = None
     open_browser: bool = True
     testing: bool = False

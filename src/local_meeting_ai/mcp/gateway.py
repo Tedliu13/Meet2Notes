@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import Any
 
 import httpx
@@ -332,6 +333,11 @@ class Meet2NotesGateway:
                     transport=self._transport,
                     timeout=timeout or self._timeout,
                     follow_redirects=False,
+                    auth=(
+                        (os.environ["M2N_MCP_AUTH_USERNAME"], os.environ["M2N_MCP_AUTH_PASSWORD"])
+                        if os.environ.get("M2N_MCP_AUTH_USERNAME")
+                        and os.environ.get("M2N_MCP_AUTH_PASSWORD") else None
+                    ),
                 ) as client:
                     response = await client.request(
                         method,

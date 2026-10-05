@@ -93,7 +93,7 @@ class MeetingStorage:
             async with aiofiles.open(destination, "wb") as output:
                 while chunk := await upload.read(1024 * 1024):
                     size += len(chunk)
-                    if size > self.max_upload_bytes:
+                    if self.max_upload_bytes and size > self.max_upload_bytes:
                         raise UploadTooLargeError(
                             "Voice sample exceeds the configured upload limit"
                         )
@@ -131,7 +131,7 @@ class MeetingStorage:
             async with aiofiles.open(destination, "xb") as output:
                 while chunk := await upload.read(1024 * 1024):
                     size += len(chunk)
-                    if size > self.max_upload_bytes:
+                    if self.max_upload_bytes and size > self.max_upload_bytes:
                         raise UploadTooLargeError(
                             f"File exceeds the {self.max_upload_bytes // 1024 // 1024} MB limit"
                         )
