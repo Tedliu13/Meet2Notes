@@ -36,7 +36,25 @@ COPY src ./src
 # Dependencies and CPU runtime only: no model setup/download during build.
 RUN python -m pip install --upgrade pip \
     && python -m pip install 'torch>=2.6,<3' 'torchaudio>=2.6,<3' --index-url https://download.pytorch.org/whl/cpu \
-    && python -m pip install '.[transcription,ai,nvidia-asr,pyannote-diarization]'
+    && CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_CPU_ALL_VARIANTS=OFF \
+       -DGGML_SSE42=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_BMI2=OFF \
+       -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_AVX_VNNI=OFF \
+       -DGGML_AVX512=OFF -DGGML_AVX512_VBMI=OFF -DGGML_AVX512_VNNI=OFF \
+       -DGGML_AVX512_BF16=OFF -DGGML_AMX_TILE=OFF -DGGML_AMX_INT8=OFF \
+       -DGGML_AMX_BF16=OFF -DGGML_LLAMAFILE=OFF" \
+       python -m pip install --no-binary=llama-cpp-python \
+       '.[transcription,ai,nvidia-asr,pyannote-diarization]'
+
+# VM CPU baseline: do not inherit the build host's ISA or a prebuilt native wheel.
+RUN python - <<'PY'
+import re
+from importlib.metadata import version
+import llama_cpp
+
+info = llama_cpp.llama_print_system_info().decode('utf-8', errors='replace')
+print('Portable llama-cpp-python ' + version('llama-cpp-python') + ': ' + info, flush=True)
+assert not re.search(r'\b(?:AVX\w*|FMA|F16C|BMI2|SSE42|AMX\w*)\s*=\s*1\b', info), info
+PY
 
 # Fail the Coolify build if the installed decoder API is incompatible.
 # This uses generated audio only and never loads or downloads a model.

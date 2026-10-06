@@ -60,6 +60,7 @@ Coolify 的 Environment Variables 中，本專案的 `M2N_*` 設定只供 runtim
 
 ## 4. Build、啟動與模型
 
+- VM 曾在摘要開始約兩秒後出現 `Fatal Python error: Illegal instruction`（SIGILL）。Docker 強制由 source build llama-cpp-python（`--no-binary=llama-cpp-python`），關閉 `GGML_NATIVE`、AVX／AVX2／AVX512、FMA／F16C／BMI2、AMX、SSE4.2 與 llamafile 指令集最佳化，以 CPU baseline 換取 VM 相容性，推論速度可能降低。建置會輸出 `Portable llama-cpp-python ...` 與 backend system info，拒絕宣告啟用上述擴充的 build。這是針對疑似原生 CPU 指令集不相容的修正，SIGILL 也可能來自其他 native library 或程式錯誤；必須部署新 image 並實際推論確認。不能只 restart 舊 image 或只更改環境變數。模型與資料 volumes 不需重建。參考：[llama-cpp-python source build](https://github.com/abetlen/llama-cpp-python#installation)、[ggml CPU build options](https://github.com/ggml-org/llama.cpp/blob/master/ggml/CMakeLists.txt)。
 - Build：`docker compose build meet2notes`（首次需下載大型 CPU 執行套件，llama.cpp 可能編譯，時間較長）。
 - Start：image CMD `meet2notes --host 0.0.0.0 --port 8765 --no-browser`。
 - 內部 port：`8765`，由 Coolify 既有 Traefik 提供 HTTPS。

@@ -14,6 +14,7 @@
 - 個人使用、單一共用 workspace，先提供 HTTP Basic 登入。這不是多租戶；多人帳號、角色與資料隔離須另行設計及測試。
 - Hosted 模式停用麥克風、系統音訊、即時錄音／轉錄及依賴它們的即時助理；保留音檔匯入、最終轉錄、講者辨識、摘要、Prompt、RAG、匯出、外掛與會後 Webhook。
 - 模型不得進入 image 或 build context。部署後才下載至獨立 `/models` named volume，含模型快取及私有模型 runtimes。
+- VM 曾在摘要推論出現 SIGILL；Docker 的 llama-cpp-python 必須由 source build、關閉 native／進階 x86 指令集最佳化，不能在未驗證 VM CPU 能力前恢復 `-march=native` 或換用預編譯 wheel。
 - `/data` named volume 保存 SQLite、錄音、聲紋、摘要、加密 secrets 與應用 logs；`/cache` 保存可重建快取及暫存上傳。
 - 應用上傳大小 `0` 表示不設大小上限，不能宣稱 Cloudflare／代理／磁碟亦無上限。
 - 工作佇列設四個 workers；推論並行度仍受引擎自身限制。CPU/RAM 限制必須可調，不假定 VM 容量無限。

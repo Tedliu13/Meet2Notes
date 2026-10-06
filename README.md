@@ -47,6 +47,8 @@ AI notes display job progress; interrupted running notes become failed after
 restart and can be rebuilt without changing completed notes.
 Hosted native crash tracebacks persist in `/data/logs/native-fault.log`; the
 activity feed resets on restart. See the deployment guide for diagnostic logs.
+The Coolify image builds llama-cpp-python from source with conservative CPU
+instruction settings for VM compatibility; rebuild the image to apply this.
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)
