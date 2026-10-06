@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import math
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -265,6 +267,49 @@ def test_rag_settings_and_prompt_window_are_available(settings: AppSettings) -> 
         assert settings_page.status_code == 200
         assert "Loading embedding models" in settings_page.text
         assert "Semantic search &amp; ranking test" in settings_page.text
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_rebuild_reports_waiting_without_counting_unfinished_batch(
+    settings: AppSettings, monkeypatch, fail: bool,
+) -> None:
+    released = threading.Event()
+
+    class WaitingProvider(KeywordEmbeddingProvider):
+        async def embed(self, texts, config):
+            while not released.is_set():
+                await asyncio.sleep(0.005)
+            if fail:
+                raise RuntimeError("Embedding service unavailable")
+            return await super().embed(texts, config)
+
+    monkeypatch.setattr(
+        "local_meeting_ai.application.rag.EMBEDDING_PROGRESS_INTERVAL", 0.01,
+    )
+    with TestClient(create_app(settings, embedding_provider=WaitingProvider())) as client:
+        _completed_transcript(client, "Meeting", "Cliente presupuesto")
+        job_id = client.post("/api/rag/index/jobs", json={"force": True}).json()["uuid"]
+        try:
+            for _ in range(200):
+                job = client.get(f"/api/jobs/{job_id}").json()
+                if "batch not completed" in job["message"]:
+                    break
+                time.sleep(0.01)
+            assert job["status"] == "running"
+            assert "batch not completed" in job["message"]
+            assert job["progress"] == pytest.approx(0.05)
+        finally:
+            released.set()
+        for _ in range(200):
+            job = client.get(f"/api/jobs/{job_id}").json()
+            if job["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.01)
+        assert job["status"] == ("failed" if fail else "completed")
+        if fail:
+            assert "Embedding service unavailable" in job["error_text"]
+        else:
+            assert job["result"]["indexed_chunks"] == 1
 
 
 def test_embedding_catalog_has_only_the_three_supported_profiles(tmp_path: Path) -> None:

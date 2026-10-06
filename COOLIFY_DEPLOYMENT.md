@@ -77,6 +77,14 @@ Coolify 的 Environment Variables 中，本專案的 `M2N_*` 設定只供 runtim
 
 Settings 可下載本地 GGUF LLM，或設定外部 API。Ollama 若部署為另一個 container，使用容器 hostname／Coolify Internal URL，不能用 `localhost` 指向它。自訂 GGUF 的 Browse 改為列出 `/models` 已安裝檔案；可先透過模型目錄下載模型，或由管理者匯入獨立模型 volume。
 
+### OpenAI API：AI notes 與 RAG
+
+現有 LiteLLM adapters 已支援 OpenAI，無須新增引擎或為此重建 image。在 Settings 的 AI Engine 選 `Custom local / remote via LiteLLM`，Model preset 選 Custom，LiteLLM model 填 `openai/gpt-4.1-mini` 作為初始設定，API base URL 留空，將自己的 OpenAI API key 填入 API key 欄位並保存。此設定同時供 AI notes 與 RAG 問答生成使用；不會把語音轉錄切換到 API。模型可依帳號可用模型及實測品質調整。[模型文件](https://developers.openai.com/api/docs/models/gpt-4.1-mini)
+
+RAG 的 Embedding model 另選 `Custom local / remote via LiteLLM`，填 `openai/text-embedding-3-small`，base URL 留空，開啟 Enable historical RAG 並保存。它與 AI Engine 共用安全保存的 LiteLLM key，不須重複填同一把 key。更換 embedding model 後執行 Rebuild index，重新向量化已完成會議；舊 BGE-M3 向量不能和 OpenAI 向量混用。若要評估另一個 embedding model，可填 `openai/text-embedding-3-large`，切換後同樣要重建索引。[Embeddings 文件](https://developers.openai.com/api/docs/guides/embeddings)
+
+資料庫、原始音檔、向量索引及檢索仍在 VM；摘要的會議文字／RAG 問答的相關片段與問題，以及 embedding 所需文字會送往 OpenAI。請在 Settings 輸入 key，不要貼至對話、Git 或 Docker build arguments。既有部署須保持相同 `M2N_SECRETS_KEY` 以讀取已保存 key。切換能移除這兩部分本機模型推論負擔，但網路、API 速率限制與文本長度仍影響延遲；本次只確認程式支援，未使用正式 key 做 API 實測。索引與生成均會產生 API 用量費用。[API 價格](https://developers.openai.com/api/docs/pricing)
+
 啟動不自動下載模型，也不需要先取得模型才能通過 health check。Nemotron 等引擎按原有流程在 model volume 建立 private runtime；不要刪除正在使用的模型或 runtime。
 
 外掛仍以 Python entry points 管理：將選定套件加入 Docker build 的 dependency installation，再重新建置，Settings rescan／enable。不要依賴進入執行中容器的臨時 pip install 來保存外掛。
@@ -95,6 +103,8 @@ Settings 可下載本地 GGUF LLM，或設定外部 API。Ollama 若部署為另
 參考：[Cloudflare 413／上傳限制](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/4xx-client-error/error-413/)。
 
 ## 6. SQLite、migration 與備份
+
+Rebuild index 顯示 `Embedding ...: chunks 1-11 of 11` 代表正在等待該批 embedding，並不代表已完成 11 個片段。新版在工作進度與應用 log 列出 provider／model，每 10 秒報告等待秒數，批次完成才計入進度；等待訊息只證明應用仍能更新狀態，不能證明模型／API 正在有效推進。應用 log 可找 `RAG indexing started`、`RAG batch started`、`RAG batch waiting`、`RAG batch completed`。若失敗，該會議原有向量會保留，只有全部批次成功後才替換；整次多會議重建不是單一交易。診斷請保留工作 UUID、最後進度、Settings 的 embedding profile／model，以及 `meet2notes.log` 和 `native-fault.log` 的末段；不要提供 API key。改用外部 API 必須保存 RAG 的 embedding 設定，單獨改 AI Engine 不會改變索引所用模型。
 
 AI notes 顯示 `running` 時，先查看該 summarize 工作的進度文字與應用 logs。CPU 本機模型可能仍在載入或生成；外部 API 則需檢查 provider／model／base URL 與連線（另一容器不能用 localhost）。啟動時會把上次中斷而仍為 running 的摘要改為 failed，保留已完成內容及 queued 摘要，不自動重送模型／API 請求；管理者確認原因後可在 AI notes 使用 Rebuild。若工作仍在運行，重啟不是通用解法；請保留工作 UUID、進度、模型設定及錯誤 traceback 供診斷，不提供 API key。
 

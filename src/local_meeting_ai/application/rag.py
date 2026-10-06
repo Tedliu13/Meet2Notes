@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import math
 import re
+import time
 import unicodedata
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timedelta
@@ -37,6 +39,9 @@ from local_meeting_ai.infrastructure.llm_context import (
 
 from .ai_services import SUMMARY_DEFAULTS, configured_values
 from .rag_vector_store import RagVectorStoreGateway
+
+logger = logging.getLogger(__name__)
+EMBEDDING_PROGRESS_INTERVAL = 10.0
 
 RAG_DEFAULTS: dict[str, Any] = {
     "enabled": True,
@@ -183,6 +188,10 @@ class RagService:
         provider = str(config["embedding_provider"])
         model = self._embedding_index_id(config)
         batch_size = int(config["embedding_batch_size"])
+        logger.info(
+            "RAG indexing started: meetings=%d provider=%s model=%s batch_size=%d force=%s",
+            len(meetings), provider, model, batch_size, force,
+        )
 
         meeting_total = max(1, len(meetings))
         for meeting_position, meeting in enumerate(meetings):
@@ -229,18 +238,18 @@ class RagService:
             vectors: list[list[float]] = []
             for offset in range(0, len(chunks), batch_size):
                 batch = chunks[offset : offset + batch_size]
-                if progress:
-                    batch_fraction = (offset + len(batch)) / max(1, len(chunks))
-                    await progress(
-                        0.05 + 0.9 * (
-                            (meeting_position + batch_fraction) / meeting_total
-                        ),
-                        (
-                            f"Embedding {meeting.title}: chunks "
-                            f"{offset + 1}-{offset + len(batch)} of {len(chunks)}"
-                        ),
-                    )
-                vectors.extend(await self.provider.embed([item["text"] for item in batch], config))
+                batch_progress = 0.05 + 0.9 * (
+                    (meeting_position + offset / max(1, len(chunks))) / meeting_total
+                )
+                message = (
+                    f"Embedding meeting {meeting_position + 1}/{len(meetings)}: chunks "
+                    f"{offset + 1}-{offset + len(batch)} of {len(chunks)} "
+                    f"({provider}, {model})"
+                )
+                vectors.extend(await self._embed_index_batch(
+                    [item["text"] for item in batch], config,
+                    progress=progress, fraction=batch_progress, message=message,
+                ))
             self._validate_vectors(vectors)
             await self.vector_stores.replace_transcription(
                 store_id,
@@ -268,7 +277,42 @@ class RagService:
         }
         if _release_model:
             await self._release_model_if_configured(config)
+        logger.info(
+            "RAG indexing completed: indexed_meetings=%d indexed_chunks=%d skipped=%d",
+            indexed_meetings, indexed_chunks, skipped_meetings,
+        )
         return result
+
+    async def _embed_index_batch(
+        self, texts: list[str], config: dict[str, Any], *,
+        progress: Callable[[float, str], Awaitable[None]] | None,
+        fraction: float, message: str,
+    ) -> list[list[float]]:
+        started = time.monotonic()
+        logger.info("RAG batch started: %s", message)
+        if progress:
+            await progress(fraction, message)
+        task = asyncio.create_task(self.provider.embed(texts, config))
+        try:
+            while True:
+                done, _ = await asyncio.wait({task}, timeout=EMBEDDING_PROGRESS_INTERVAL)
+                elapsed = time.monotonic() - started
+                if done:
+                    vectors = task.result()
+                    logger.info("RAG batch completed in %.1fs: %s", elapsed, message)
+                    return vectors
+                waiting = f"{message}; waiting {elapsed:.0f}s (batch not completed)"
+                logger.info("RAG batch waiting: %s", waiting)
+                if progress:
+                    await progress(fraction, waiting)
+        except BaseException:
+            logger.warning("RAG batch did not complete after %.1fs: %s",
+                           time.monotonic() - started, message)
+            raise
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     async def start_rebuild(
         self,

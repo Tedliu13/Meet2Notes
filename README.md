@@ -49,6 +49,8 @@ Hosted native crash tracebacks persist in `/data/logs/native-fault.log`; the
 activity feed resets on restart. See the deployment guide for diagnostic logs.
 The Coolify image builds llama-cpp-python from source with conservative CPU
 instruction settings for VM compatibility; rebuild the image to apply this.
+AI notes, RAG answers and RAG embeddings can use OpenAI through the existing
+LiteLLM profiles. Configuration and index rebuild steps are in the deployment guide.
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)
