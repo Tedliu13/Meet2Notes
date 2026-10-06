@@ -602,13 +602,17 @@ def diagnostic_report(container: ContainerDependency) -> dict[str, str]:
         ]
 
     def recent_log() -> list[str]:
-        log_files = sorted(
-            container.paths.logs.glob("*.log"), key=lambda path: path.stat().st_mtime
-        )
+        log_files = [path for path in (
+            container.paths.logs / "meet2notes.log",
+            container.paths.logs / "native-fault.log",
+        ) if path.is_file()]
         if not log_files:
             return ["No log file found."]
-        content = log_files[-1].read_text(encoding="utf-8", errors="replace").splitlines()
-        return [f"Source: {log_files[-1]}", *content[-200:]]
+        result: list[str] = []
+        for path in log_files:
+            content = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            result.extend([f"Source: {path}", *content[-200:]])
+        return result
 
     section("Hardware", hardware)
     section("Operating system & runtime", software)

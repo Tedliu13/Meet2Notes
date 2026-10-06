@@ -1,14 +1,43 @@
 from __future__ import annotations
 
+import faulthandler
 import logging
+import os
 import threading
 from collections import deque
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from typing import Any
 
 from local_meeting_ai.paths import AppPaths
+
+
+@contextmanager
+def native_fault_logging(paths: AppPaths, *, enabled: bool) -> Iterator[None]:
+    """Keep fatal native tracebacks outside stderr redirection and the RAM feed."""
+    if not enabled:
+        yield
+        return
+    paths.logs.mkdir(parents=True, exist_ok=True)
+    path = paths.logs / "native-fault.log"
+    if path.exists() and path.stat().st_size >= 5 * 1024 * 1024:
+        path.replace(path.with_suffix(".log.1"))
+    previously_enabled = faulthandler.is_enabled()
+    with path.open("ab") as output:
+        stamp = datetime.now(UTC).isoformat()
+        output.write(f"\nNative fault logging started {stamp} pid={os.getpid()}\n".encode())
+        output.flush()
+        faulthandler.enable(file=output, all_threads=True)
+        try:
+            yield
+        finally:
+            # Disable before closing the descriptor; never write to a reused fd.
+            faulthandler.disable()
+            if previously_enabled:
+                faulthandler.enable(all_threads=True)
 
 
 @dataclass(frozen=True, slots=True)

@@ -22,6 +22,7 @@ from local_meeting_ai.instance_lock import (
     InstanceLock,
     instance_metadata,
 )
+from local_meeting_ai.logging_config import native_fault_logging
 from local_meeting_ai.paths import AppPaths
 
 
@@ -106,23 +107,28 @@ def main(argv: Sequence[str] | None = None) -> None:
             )
             browser_timer.daemon = True
             browser_timer.start()
-        app = create_app(settings)
-        server = uvicorn.Server(
-            uvicorn.Config(
-                app=app,
-                host=settings.host,
-                port=settings.port,
-                log_level=settings.log_level.lower(),
-                # A browser keeps an SSE status stream open. It is asked to
-                # close during shutdown, but this timeout guarantees that a
-                # stale browser connection can never keep models resident.
-                timeout_graceful_shutdown=10,
-            )
-        )
-        app.state.request_shutdown = lambda: setattr(server, "should_exit", True)
-        server.run()
+        with native_fault_logging(paths, enabled=settings.hosted):
+            _run_server(settings)
     finally:
         lock.release()
+
+
+def _run_server(settings: AppSettings) -> None:
+    app = create_app(settings)
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app=app,
+            host=settings.host,
+            port=settings.port,
+            log_level=settings.log_level.lower(),
+            # A browser keeps an SSE status stream open. It is asked to
+            # close during shutdown, but this timeout guarantees that a
+            # stale browser connection can never keep models resident.
+            timeout_graceful_shutdown=10,
+        )
+    )
+    app.state.request_shutdown = lambda: setattr(server, "should_exit", True)
+    server.run()
 
 
 def _ensure_port_available(host: str, port: int) -> None:
@@ -131,9 +137,7 @@ def _ensure_port_available(host: str, port: int) -> None:
     try:
         probe.bind((host, port))
     except OSError as error:
-        raise SystemExit(
-            f"Cannot start Meet2Notes: {host}:{port} is already in use."
-        ) from error
+        raise SystemExit(f"Cannot start Meet2Notes: {host}:{port} is already in use.") from error
     finally:
         probe.close()
 

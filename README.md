@@ -45,6 +45,8 @@ The transcription extra bounds PyAV below 19 for Faster Whisper's audio decoder;
 rebuild the image when updating this dependency constraint.
 AI notes display job progress; interrupted running notes become failed after
 restart and can be rebuilt without changing completed notes.
+Hosted native crash tracebacks persist in `/data/logs/native-fault.log`; the
+activity feed resets on restart. See the deployment guide for diagnostic logs.
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)

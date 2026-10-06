@@ -665,6 +665,10 @@ class LlamaCppSummaryEngine:
         on_phase = getattr(progress, "on_phase", None)
         if callable(on_phase):
             on_phase("reading_context")
+        logger.info(
+            "Local AI notes inference started (context=%s, max_output_tokens=%s)",
+            context_length, maximum_tokens,
+        )
         chunks = model.create_chat_completion(
             messages=messages,
             max_tokens=maximum_tokens,
@@ -696,6 +700,8 @@ class LlamaCppSummaryEngine:
                     if on_token:
                         on_token(str(text))
                 if index % 16 == 0:
+                    if index == 0:
+                        logger.info("Local AI notes inference produced its first response chunk")
                     progress(
                         min(
                             progress_end,
@@ -1085,7 +1091,8 @@ class LlamaCppSummaryEngine:
                 flash_attn=bool(config.get("flash_attention", True)),
                 numa=bool(config.get("numa", False)),
                 seed=int(config.get("seed", -1)),
-                verbose=False,
+                verbose=os.getenv("M2N_LLAMACPP_VERBOSE", "false").lower()
+                in {"1", "true", "yes", "on"},
             )
             self._model_key = key
             logger.info("Local AI notes model %s loaded", path.name)

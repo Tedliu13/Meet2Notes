@@ -29,6 +29,7 @@
 | `M2N_MEMORY_LIMIT` | 預設 `32g`；管理者依實際模型及其他專案調整 |
 | `M2N_CPU_THREADS` | 預設 `2`；首次 Hosted 啟動設定 Faster Whisper CPU threads，亦控制 BLAS/OMP threads |
 | `M2N_LOG_LEVEL` | 預設 `INFO` |
+| `M2N_LLAMACPP_VERBOSE` | Compose 預設 `true`，保留原生 llama.cpp 訊息至容器 stderr，供推論崩潰診斷；桌面預設關閉 |
 | `M2N_PYANNOTE_TOKEN` | 選用，下載 gated Pyannote 模型時需要先接受條款 |
 
 生成 `M2N_SECRETS_KEY`（在可信任的 Python 環境執行，將結果只填入 Coolify）：
@@ -95,6 +96,8 @@ Settings 可下載本地 GGUF LLM，或設定外部 API。Ollama 若部署為另
 ## 6. SQLite、migration 與備份
 
 AI notes 顯示 `running` 時，先查看該 summarize 工作的進度文字與應用 logs。CPU 本機模型可能仍在載入或生成；外部 API 則需檢查 provider／model／base URL 與連線（另一容器不能用 localhost）。啟動時會把上次中斷而仍為 running 的摘要改為 failed，保留已完成內容及 queued 摘要，不自動重送模型／API 請求；管理者確認原因後可在 AI notes 使用 Rebuild。若工作仍在運行，重啟不是通用解法；請保留工作 UUID、進度、模型設定及錯誤 traceback 供診斷，不提供 API key。
+
+Activity 是記憶體中的本次執行記錄，重啟後清空；`/data/logs/meet2notes.log` 及輪替檔才是跨重啟的應用紀錄。Hosted CLI 另外把 Python 可捕捉的原生 fatal signal traceback 寫到 `/data/logs/native-fault.log`（啟動時超過 5 MiB 輪替一份）；診斷報告同時列出應用與 native fault log。SIGKILL／OOM kill 不會產生 Python traceback，須由管理者檢查容器退出／重啟事件；檔案只有啟動標頭也不能證明沒有崩潰。`M2N_LLAMACPP_VERBOSE=true` 避免 llama-cpp-python 在靜默模式下把原生載入期間的 process stdout／stderr 暫時導向空裝置。模型成功載入只證明載入階段完成，推論是否完成須看 `Started summarize`、`Local AI notes inference started` 與工作完成紀錄；請勿把 restart recovery 訊息當作原始錯誤原因。
 
 本專案保留既有 SQLite／FTS5／向量儲存，不需要 `DATABASE_URL`、PostgreSQL resource 或 extensions。這是原有 fork 的容器化例外；不能只設定 PostgreSQL URL 就切換資料庫。
 
