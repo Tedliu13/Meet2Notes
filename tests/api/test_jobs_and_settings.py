@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from local_meeting_ai.api.app import create_app
@@ -51,7 +52,8 @@ def test_queued_job_can_be_cancelled(client: TestClient) -> None:
     assert cancelled.json()["cancel_requested"] is True
 
 
-def test_preferences_are_persisted_without_secrets(client: TestClient) -> None:
+@pytest.mark.parametrize("language", ["es", "zh-TW"])
+def test_preferences_are_persisted_without_secrets(client: TestClient, language: str) -> None:
     defaults = client.get("/api/settings")
     assert defaults.status_code == 200
     assert defaults.json()["confirm_permanent_delete"] is True
@@ -62,20 +64,26 @@ def test_preferences_are_persisted_without_secrets(client: TestClient) -> None:
     updated = client.put(
         "/api/settings",
         json={
-            "ui_language": "es",
+            "ui_language": language,
             "ui_theme": "dark",
             "retention_days": 90,
             "confirm_permanent_delete": False,
         },
     )
     assert updated.status_code == 200
-    assert updated.json()["ui_language"] == "es"
+    assert updated.json()["ui_language"] == language
     assert updated.json()["ui_theme"] == "dark"
     assert updated.json()["retention_days"] == 90
     assert "api_key" not in updated.json()
 
     loaded = client.get("/api/settings")
     assert loaded.json() == updated.json()
+
+    catalog = client.get(f"/static/locales/{language}.json")
+    assert catalog.status_code == 200
+    assert language in client.get("/static/locales/index.json").json()
+    if language == "zh-TW":
+        assert catalog.json()["nav.meetings"] == "會議"
 
     invalid = client.put("/api/settings", json={"ui_theme": "midnight"})
     assert invalid.status_code == 422

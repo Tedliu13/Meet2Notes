@@ -5,15 +5,17 @@ from __future__ import annotations
 import json
 import re
 import sys
+from collections import Counter
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCALES = ROOT / "src" / "local_meeting_ai" / "web" / "static" / "locales"
 SCRIPTS = ROOT / "src" / "local_meeting_ai" / "web" / "static" / "js"
 TEMPLATES = ROOT / "src" / "local_meeting_ai" / "web" / "templates"
 KEY_USE = re.compile(r'(?:Meet2Notes\.)?\bt\("([^"]+)"')
+PLACEHOLDER = re.compile(r"\{([a-zA-Z_][a-zA-Z_0-9]*)\}")
 TECHNICAL_LITERALS = {
     ".venv",
     "0%",
@@ -41,7 +43,7 @@ IMMUTABLE_UI_TERMS = {
 }
 
 
-def load_catalogs() -> dict[str, dict[str, object]]:
+def load_catalogs() -> dict[str, dict[str, Any]]:
     catalogs = {
         path.stem: json.loads(path.read_text(encoding="utf-8"))
         for path in LOCALES.glob("*.json")
@@ -87,8 +89,26 @@ def main() -> int:
     catalogs = load_catalogs()
     source_keys = set(catalogs["en"]) - {"literal"}
     errors: list[str] = []
+    language_names = json.loads((LOCALES / "index.json").read_text(encoding="utf-8"))
+    if set(language_names) != set(catalogs):
+        errors.append("index.json must list exactly the available locale catalogs")
+
+    def check_values(source: object, translated: object, path: str) -> None:
+        if isinstance(source, dict):
+            if not isinstance(translated, dict):
+                errors.append(f"{path}: expected a translation object")
+                return
+            for key, value in source.items():
+                if key in translated:
+                    check_values(value, translated[key], f"{path}.{key}")
+        elif isinstance(source, str):
+            if not isinstance(translated, str) or not translated.strip():
+                errors.append(f"{path}: expected a non-empty translation")
+            elif Counter(PLACEHOLDER.findall(source)) != Counter(PLACEHOLDER.findall(translated)):
+                errors.append(f"{path}: replacement placeholders differ from English")
 
     for locale, catalog in sorted(catalogs.items()):
+        check_values(catalogs["en"], catalog, locale)
         keys = set(catalog) - {"literal"}
         missing = sorted(source_keys - keys)
         extra = sorted(keys - source_keys)
@@ -132,6 +152,7 @@ def main() -> int:
         value
         for value in collector.values
         if value not in literals and value not in TECHNICAL_LITERALS
+        and value not in language_names.values()
     )
     if untranslated:
         errors.append(f"visible template literals absent from en.json: {', '.join(untranslated)}")

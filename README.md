@@ -710,6 +710,12 @@ translate its values, add the language's native name to `index.json`, and open a
 pull request. If you would prefer to coordinate first, open a GitHub issue with
 the proposed locale and we can reserve or review it there.
 
+The interface supports English, Spanish and Traditional Chinese (`zh-TW`).
+Choose **繁體中文** from the language selector or Settings → General → Interface
+language. The selection is saved for the workspace and applies across pages.
+This changes the interface language; transcription language and AI output
+instructions remain separately configurable.
+
 AI can be useful for a first draft, but it is not a substitute for native
 review. We deliberately rely on native-speaking contributors to make wording,
 tone, and product terminology feel right in their language. Pull requests from

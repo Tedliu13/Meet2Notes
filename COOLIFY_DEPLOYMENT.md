@@ -104,6 +104,8 @@ RAG 的 Embedding model 另選 `Custom local / remote via LiteLLM`，填 `openai
 
 ## 6. SQLite、migration 與備份
 
+介面可選英文、西班牙文與繁體中文（`zh-TW`）。在語言選單或 Settings → General → Interface language 選擇「繁體中文」後會立即套用，並儲存為共用 workspace 的設定；重開頁面仍會保留。既有部署需部署包含 `zh-TW.json` 的新版 image。介面語系與轉錄語言、AI 筆記的輸出語言指令分別設定，不會因切換介面而重建索引或下載模型。
+
 Rebuild index 顯示 `Embedding ...: chunks 1-11 of 11` 代表正在等待該批 embedding，並不代表已完成 11 個片段。新版在工作進度與應用 log 列出 provider／model，每 10 秒報告等待秒數，批次完成才計入進度；等待訊息只證明應用仍能更新狀態，不能證明模型／API 正在有效推進。應用 log 可找 `RAG indexing started`、`RAG batch started`、`RAG batch waiting`、`RAG batch completed`。若失敗，該會議原有向量會保留，只有全部批次成功後才替換；整次多會議重建不是單一交易。診斷請保留工作 UUID、最後進度、Settings 的 embedding profile／model，以及 `meet2notes.log` 和 `native-fault.log` 的末段；不要提供 API key。改用外部 API 必須保存 RAG 的 embedding 設定，單獨改 AI Engine 不會改變索引所用模型。
 
 AI notes 顯示 `running` 時，先查看該 summarize 工作的進度文字與應用 logs。CPU 本機模型可能仍在載入或生成；外部 API 則需檢查 provider／model／base URL 與連線（另一容器不能用 localhost）。啟動時會把上次中斷而仍為 running 的摘要改為 failed，保留已完成內容及 queued 摘要，不自動重送模型／API 請求；管理者確認原因後可在 AI notes 使用 Rebuild。若工作仍在運行，重啟不是通用解法；請保留工作 UUID、進度、模型設定及錯誤 traceback 供診斷，不提供 API key。
