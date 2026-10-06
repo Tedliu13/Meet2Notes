@@ -11,6 +11,33 @@ from local_meeting_ai.domain.enums import JobType
 from local_meeting_ai.paths import default_models_directory
 
 
+def test_restart_recovers_running_ai_notes_without_overwriting_completed_notes(
+    settings: AppSettings,
+) -> None:
+    with TestClient(create_app(settings)) as client:
+        meeting = client.post("/api/meetings", json={"title": "Interrupted notes"}).json()
+        container = client.app.state.container
+        transcription = container.transcriptions.create(
+            meeting_id=meeting["id"], title="Transcript", engine="test", model="test",
+            language="zh", settings={},
+        )
+        summaries = [container.summaries.create(
+            meeting_id=meeting["id"], transcription_id=transcription.id,
+            provider="test", model="test",
+        ) for _ in range(3)]
+        container.summaries.mark_running(summaries[0].id)
+        container.summaries.complete(summaries[1].id, "Existing notes")
+    with TestClient(create_app(settings)) as restarted:
+        notes = {note["id"]: note for note in restarted.get(
+            f"/api/meetings/{meeting['id']}/summaries"
+        ).json()}
+        assert notes[summaries[0].id]["status"] == "failed"
+        assert notes[summaries[1].id]["status"] == "completed"
+        assert notes[summaries[1].id]["content_markdown"] == "Existing notes"
+        assert notes[summaries[2].id]["status"] == "queued"
+        assert restarted.app.state.container.summaries.recover_interrupted() == 0
+
+
 def test_queued_job_can_be_cancelled(client: TestClient) -> None:
     container = client.app.state.container
     job = container.jobs.create(

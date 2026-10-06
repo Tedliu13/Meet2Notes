@@ -1628,6 +1628,19 @@ class SummaryRepository:
                 (summary_id,),
             )
 
+    def recover_interrupted(self) -> int:
+        """Fail interrupted notes at startup without replaying model/API requests."""
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE summaries
+                SET status = 'failed', completed_at = ?
+                WHERE status = 'running'
+                """,
+                (utc_now(),),
+            )
+        return cursor.rowcount
+
     def complete(
         self,
         summary_id: int,

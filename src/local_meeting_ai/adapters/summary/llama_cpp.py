@@ -369,6 +369,7 @@ class LlamaCppSummaryEngine:
                 )
                 config["context_length"] = context_length
             if not remote:
+                progress(0.08, "Loading the local AI notes model")
                 on_phase = getattr(progress, "on_phase", None)
                 if callable(on_phase):
                     on_phase("loading_model")
@@ -1063,6 +1064,11 @@ class LlamaCppSummaryEngine:
             }
             threads = int(config.get("threads", 0))
             batch_threads = int(config.get("batch_threads", 0))
+            logger.info(
+                "Loading local AI notes model %s (context=%s, threads=%s, gpu_layers=%s)",
+                path.name, config.get("context_length", 16384), threads or "auto",
+                config.get("gpu_layers", -1),
+            )
             self._model = llama_cpp.Llama(
                 model_path=str(path),
                 n_ctx=int(config.get("context_length", 16384)),
@@ -1082,6 +1088,7 @@ class LlamaCppSummaryEngine:
                 verbose=False,
             )
             self._model_key = key
+            logger.info("Local AI notes model %s loaded", path.name)
             return self._model
 
     def _resolve_model_path(

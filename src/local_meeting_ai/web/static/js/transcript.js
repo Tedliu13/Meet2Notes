@@ -61,6 +61,7 @@
   let currentMeeting = null;
   let versions = [];
   let meetingSummaries = [];
+  let summaryJobSnapshot = [];
   let noteFormats = [];
   let engineCapabilities = {};
   let preferences = {};
@@ -1195,6 +1196,8 @@
       }
       editor.dataset.viewMode = aiNotesViewMode;
     }
+    const summaryJob = summaryJobSnapshot.find((job) =>
+      Number(job.payload?.summary_id) === Number(summary.id));
     status.textContent = summary.status === "completed" ? "Ready" : summary.status;
     status.classList.toggle("ready", summary.status === "completed");
     container.classList.toggle("plain-text-view", aiNotesViewMode === "plain");
@@ -1205,7 +1208,10 @@
         container.textContent = markdownToPlainText(summary.content_markdown);
       }
     } else {
-      container.innerHTML = `<div class="result-empty"><strong>AI analysis is ${escapeHTML(summary.status)}</strong><span>The report will appear automatically.</span></div>`;
+      const detail = summary.status === "failed"
+        ? (summaryJob?.error_text || "Generation failed or was interrupted. Review the activity log, then rebuild AI notes.")
+        : (summaryJob?.message || "The report will appear automatically.");
+      container.innerHTML = `<div class="result-empty"><strong>AI analysis is ${escapeHTML(summary.status)}</strong><span>${escapeHTML(detail)}</span></div>`;
     }
   }
 
@@ -3048,6 +3054,12 @@
 
   async function applyJobUpdates(jobs) {
     if (!meetingId) return;
+    summaryJobSnapshot = jobs.filter((job) =>
+      String(job.meeting_id) === String(meetingId) && job.job_type === "summarize" &&
+      job.payload?.summary_scope !== "speaker");
+    if (summaryJobSnapshot.some((job) => ["queued", "running"].includes(job.status))) {
+      renderSummaryPanel();
+    }
     if (activeSpeakerRebuildJobId) {
       const rebuildJob = jobs.find((job) => job.uuid === activeSpeakerRebuildJobId);
       if (rebuildJob) {

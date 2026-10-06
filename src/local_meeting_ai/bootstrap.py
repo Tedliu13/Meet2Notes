@@ -292,6 +292,7 @@ def build_container(
         provider_registry,
     )
     transcriptions.recover_interrupted()
+    summaries.recover_interrupted()
     storage = MeetingStorage(paths, settings.max_upload_bytes)
     ffmpeg = FFmpegClient(settings.ffmpeg_path)
     speaker_service = SpeakerService(

@@ -43,6 +43,8 @@ not a password. For restart loops caused by `Incorrect padding`, follow the key
 setup and recovery instructions in [COOLIFY_DEPLOYMENT.md](COOLIFY_DEPLOYMENT.md).
 The transcription extra bounds PyAV below 19 for Faster Whisper's audio decoder;
 rebuild the image when updating this dependency constraint.
+AI notes display job progress; interrupted running notes become failed after
+restart and can be rebuilt without changing completed notes.
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)

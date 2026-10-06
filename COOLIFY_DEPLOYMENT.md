@@ -94,6 +94,8 @@ Settings 可下載本地 GGUF LLM，或設定外部 API。Ollama 若部署為另
 
 ## 6. SQLite、migration 與備份
 
+AI notes 顯示 `running` 時，先查看該 summarize 工作的進度文字與應用 logs。CPU 本機模型可能仍在載入或生成；外部 API 則需檢查 provider／model／base URL 與連線（另一容器不能用 localhost）。啟動時會把上次中斷而仍為 running 的摘要改為 failed，保留已完成內容及 queued 摘要，不自動重送模型／API 請求；管理者確認原因後可在 AI notes 使用 Rebuild。若工作仍在運行，重啟不是通用解法；請保留工作 UUID、進度、模型設定及錯誤 traceback 供診斷，不提供 API key。
+
 本專案保留既有 SQLite／FTS5／向量儲存，不需要 `DATABASE_URL`、PostgreSQL resource 或 extensions。這是原有 fork 的容器化例外；不能只設定 PostgreSQL URL 就切換資料庫。
 
 Migration 在啟動時由 `MigrationRunner.apply()` 執行編號 SQL，已套用版本記錄於 schema_migrations，可重複啟動，不 drop 現有表。只運行一個 app process／一個 replica，禁止多 container 共用同一 writable SQLite volume；四個 jobs 由同一 process 處理。

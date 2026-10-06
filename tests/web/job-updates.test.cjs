@@ -13,6 +13,7 @@ function workspace() {
     meetingId: '38', activeTranscriptionId: 38, terminalJobIds: new Set(),
     activeSpeakerRebuildJobId: null, activeSpeakerSummaryJobId: null,
     meetingSummaries: [{ ...summary, status: 'queued', content_markdown: null }], versions: [],
+    summaryJobSnapshot: [],
     requests: [], rendered: [], selected: [], notifications: [], timers: [],
     renderPostprocess() {}, renderProgress() {},
     renderSummaryPanel() { state.rendered.push(state.meetingSummaries); },
@@ -27,6 +28,17 @@ function workspace() {
   vm.runInContext(updates, state);
   return state;
 }
+test('running notes refresh their progress message without fetching completed results', async () => {
+  const state = workspace();
+  await state.applyJobUpdates([job('summary', 'summarize', {
+    status: 'running', message: 'Generating notes: 25 tokens', payload: { summary_id: 29 },
+  })]);
+  assert.equal(state.summaryJobSnapshot[0].message, 'Generating notes: 25 tokens');
+  assert.equal(state.rendered.length, 1);
+  assert.equal(state.requests.length, 0);
+  assert.equal(state.terminalJobIds.size, 0);
+});
+
 test('summary and its newer index job finishing together refresh AI notes', async () => {
   const state = workspace();
   await state.applyJobUpdates([job('index', 'index_search'), job('summary', 'summarize')]);
