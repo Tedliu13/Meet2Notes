@@ -363,6 +363,7 @@ class PreferenceUpdate(BaseModel):
     models_directory: str | None = Field(default=None, max_length=2048)
     http_port: int | None = Field(default=None, ge=1024, le=65535)
     default_transcription_language: str | None = Field(default=None, max_length=20)
+    chinese_transcript_script: Literal["original", "traditional"] = "original"
     retention_days: int | None = Field(default=None, ge=1, le=3650)
     confirm_permanent_delete: bool | None = None
     default_summary_template_id: int | None = Field(default=None, ge=1)
@@ -388,6 +389,7 @@ class PreferenceResponse(BaseModel):
     models_directory_runtime_override: bool = False
     http_port: int = Field(default=8765, ge=1024, le=65535)
     default_transcription_language: str | None = None
+    chinese_transcript_script: Literal["original", "traditional"] = "original"
     retention_days: int | None = None
     confirm_permanent_delete: bool = True
     default_summary_template_id: int | None = None

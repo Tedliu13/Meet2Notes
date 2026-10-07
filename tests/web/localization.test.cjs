@@ -45,6 +45,8 @@ test('Traditional Chinese renders text, interpolation and plural counts', () => 
     assert.equal(context.t('post_assistant.sources', { count }), `已檢索 ${count} 個來源`);
   }
   assert.equal(context.translateLiteral('Drop a file here or browse'), '將檔案拖放至此，或瀏覽檔案');
+  assert.equal(context.translateLiteral('Chinese transcript script'), '中文逐字稿字形');
+  assert.equal(context.translateLiteral('Traditional Chinese (Taiwan)'), '繁體中文（臺灣）');
   assert.equal(context.t('nav.prompt'), 'Prompt');
 });
 

@@ -305,6 +305,7 @@ class FasterWhisperEngine:
                         text=text,
                         confidence=confidence,
                         metadata={
+                            "detected_language": getattr(info, "language", request.language),
                             "avg_logprob": average_log_probability,
                             "no_speech_prob": _optional_float(
                                 getattr(segment, "no_speech_prob", None)

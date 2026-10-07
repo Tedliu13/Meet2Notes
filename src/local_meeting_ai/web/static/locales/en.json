@@ -87,6 +87,10 @@
   "mcp.status_enabled": "Enabled · desktop clients can use the read-only Meet2Notes tools while this app is running.",
   "mcp.title": "MCP desktop clients",
   "literal": {
+    "Chinese transcript script": "Chinese transcript script",
+    "Applies to new final Chinese transcripts. Existing transcripts and AI output language are unchanged.": "Applies to new final Chinese transcripts. Existing transcripts and AI output language are unchanged.",
+    "Keep model output": "Keep model output",
+    "Traditional Chinese (Taiwan)": "Traditional Chinese (Taiwan)",
     "Your file is uploaded to this private server. Remote AI processing occurs when configured.": "Your file is uploaded to this private server. Remote AI processing occurs when configured.",
     "Automatic context": "Automatic context",
     "Choose a provider model or Custom. Use an API key for the selected provider.": "Choose a provider model or Custom. Use an API key for the selected provider.",

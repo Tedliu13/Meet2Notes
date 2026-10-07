@@ -87,6 +87,10 @@
   "mcp.status_enabled": "已啟用 · 應用程式運作時，桌面用戶端可使用唯讀 Meet2Notes 工具。",
   "mcp.title": "MCP 桌面用戶端",
   "literal": {
+    "Chinese transcript script": "中文逐字稿字形",
+    "Applies to new final Chinese transcripts. Existing transcripts and AI output language are unchanged.": "套用至新產生的最終中文逐字稿。既有逐字稿與 AI 輸出語言不會變更。",
+    "Keep model output": "保留模型原文",
+    "Traditional Chinese (Taiwan)": "繁體中文（臺灣）",
     "Your file is uploaded to this private server. Remote AI processing occurs when configured.": "檔案會上傳至此私人伺服器。設定遠端 AI 後，處理作業會使用遠端服務。",
     "Automatic context": "自動調整上下文",
     "Choose a provider model or Custom. Use an API key for the selected provider.": "選擇供應商模型或自訂模型，並使用所選供應商的 API 金鑰。",

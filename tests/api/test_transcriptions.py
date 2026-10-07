@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import shutil
+import threading
 import time
 import wave
 from collections.abc import Iterator
@@ -10,6 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 from local_meeting_ai.api.app import create_app
@@ -178,6 +180,64 @@ def _wait_for_job(client: TestClient, job_uuid: str) -> dict[str, Any]:
             return job
         time.sleep(0.02)
     raise AssertionError("Job did not reach a terminal state")
+
+
+@pytest.mark.parametrize("language", [None, "zh"])
+def test_chinese_transcript_converts_stream_and_final_with_snapshot_setting(
+    tmp_path: Path, language: str | None,
+) -> None:
+    released = threading.Event()
+
+    class ChineseEngine(FakeTranscriptionEngine):
+        async def transcribe(self, request, progress, is_cancelled, segment_ready):
+            segment = SegmentDraft(
+                index=0, start_ms=10, end_ms=900, text="我们讨论气候变化。",
+                metadata={"detected_language": "zh"},
+            )
+            segment_ready(segment)
+            while not released.is_set():
+                await asyncio.sleep(0.005)
+            return TranscriptionResult(
+                language="zh", language_probability=0.99, duration_ms=1000, segments=[segment],
+            )
+
+    with _client(tmp_path, ChineseEngine()) as client:
+        response = client.put("/api/settings", json={"chinese_transcript_script": "traditional"})
+        assert response.status_code == 200
+        assert response.json()["chinese_transcript_script"] == "traditional"
+        invalid = client.put("/api/settings", json={"chinese_transcript_script": "invalid"})
+        assert invalid.status_code == 422
+        invalid = client.put("/api/settings", json={"chinese_transcript_script": None})
+        assert invalid.status_code == 422
+        meeting = client.post("/api/meetings", json={"title": "Chinese meeting"}).json()
+        client.post(f"/api/meetings/{meeting['id']}/import",
+                    files={"file": ("meeting.wav", _wav_bytes(), "audio/wav")})
+        response = client.post(f"/api/meetings/{meeting['id']}/transcriptions",
+                               json={"profile_id": "balanced", "language": language})
+        assert response.status_code == 202, response.text
+        started = response.json()
+        transcript_id = started["transcription"]["id"]
+        try:
+            for _ in range(200):
+                detail = client.get(f"/api/transcriptions/{transcript_id}").json()
+                if detail["segments"]:
+                    break
+                time.sleep(0.01)
+            assert detail["segments"][0]["text"] == "我們討論氣候變化。"
+            assert detail["segments"][0]["is_final"] is False
+            # Another browser changing settings must not change an in-flight job.
+            client.put("/api/settings", json={"chinese_transcript_script": "original"})
+        finally:
+            released.set()
+        assert _wait_for_job(client, started["job"]["uuid"])["status"] == "completed"
+        detail = client.get(f"/api/transcriptions/{transcript_id}").json()
+        segment = detail["segments"][0]
+        assert segment["text"] == "我們討論氣候變化。"
+        assert segment["metadata"]["transcription_original_text"] == "我们讨论气候变化。"
+        assert (segment["start_ms"], segment["end_ms"]) == (10, 900)
+        assert segment["is_final"] is True
+        assert detail["transcription"]["settings"]["chinese_transcript_script"] == "traditional"
+        assert client.get("/api/settings").json()["chinese_transcript_script"] == "original"
 
 
 def test_transcription_pipeline_editor_and_versions(tmp_path: Path) -> None:

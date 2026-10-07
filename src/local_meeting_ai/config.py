@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,6 +27,7 @@ class AppSettings(BaseSettings):
     max_heavy_jobs: int = Field(default=1, ge=1, le=4)
     cpu_threads: int = Field(default=2, ge=1, le=64)
     hosted: bool = False
+    chinese_transcript_script: Literal["original", "traditional"] = "original"
     allowed_hosts: str = ""
     auth_username: str = ""
     auth_password: str = Field(default="", repr=False)

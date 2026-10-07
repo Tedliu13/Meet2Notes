@@ -213,6 +213,8 @@ def build_container(
     recordings = RecordingRepository(database)
     jobs = JobRepository(database)
     preferences = SettingsRepository(database)
+    if "chinese_transcript_script" not in preferences.get_all():
+        preferences.update({"chinese_transcript_script": settings.chinese_transcript_script})
     if settings.hosted:
         live_config = preferences.get_all().get("live_assistant", {})
         preferences.update({

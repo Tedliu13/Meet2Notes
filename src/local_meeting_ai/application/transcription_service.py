@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from local_meeting_ai.application.chinese_transcript import ChineseTranscriptConverter
 from local_meeting_ai.application.transcription_config import faster_whisper_config
 from local_meeting_ai.application.transcription_profiles import (
     TranscriptionProfileCatalog,
@@ -175,6 +176,9 @@ class TranscriptionService:
                 "condition_on_previous_text": profile.condition_on_previous_text,
                 "keep_model_loaded": profile.keep_model_loaded,
                 "task": resolved_task,
+                "chinese_transcript_script": self.preferences.get_all().get(
+                    "chinese_transcript_script", "original",
+                ),
                 "model_download_confirmed": allow_model_download,
             },
         )
@@ -288,6 +292,9 @@ class TranscriptionService:
                 "postprocess": True,
                 "postprocess_options": workflow_options,
                 "skip_final_pass": not run_final_pass,
+                "chinese_transcript_script": self.preferences.get_all().get(
+                    "chinese_transcript_script", "original",
+                ),
             },
             message=(
                 "Refining the live transcript"
@@ -344,6 +351,11 @@ class TranscriptionService:
             return current is None or current.cancel_requested
 
         normalized: Recording | None = None
+        converter = ChineseTranscriptConverter(
+            str(job.payload.get("chinese_transcript_script")
+                or transcription.settings.get("chinese_transcript_script", "original")),
+            task=str(job.payload.get("task", "transcribe")),
+        )
         try:
             await context.update(0.04, "Preparing audio for transcription")
             normalized = self._reusable_normalized(recording)
@@ -391,9 +403,10 @@ class TranscriptionService:
                 )
 
             def report_segment(segment: Any) -> None:
+                language = (segment.metadata or {}).get("detected_language")
                 self.transcriptions.append_segment(
                     transcription_id,
-                    segment,
+                    converter.segment(segment, language or job.payload.get("language")),
                     is_final=False,
                 )
 
@@ -427,7 +440,10 @@ class TranscriptionService:
             completed = self.transcriptions.complete(
                 transcription_id,
                 language=result.language,
-                segments=result.segments,
+                segments=[
+                    converter.segment(segment, result.language or job.payload.get("language"))
+                    for segment in result.segments
+                ],
             )
             if not completed:
                 raise NotFoundError("The transcription no longer exists")

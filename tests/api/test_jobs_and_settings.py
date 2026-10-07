@@ -98,6 +98,18 @@ def test_local_http_port_is_validated_and_persisted(client: TestClient) -> None:
     assert client.put("/api/settings", json={"http_port": 80}).status_code == 422
 
 
+def test_chinese_script_initial_default_does_not_override_saved_preference(
+    settings: AppSettings,
+) -> None:
+    configured = settings.model_copy(update={"chinese_transcript_script": "traditional"})
+    with TestClient(create_app(configured)) as client:
+        assert client.get("/api/settings").json()["chinese_transcript_script"] == "traditional"
+        updated = client.put("/api/settings", json={"chinese_transcript_script": "original"})
+        assert updated.status_code == 200
+    with TestClient(create_app(configured)) as client:
+        assert client.get("/api/settings").json()["chinese_transcript_script"] == "original"
+
+
 def test_custom_models_directory_is_applied_after_restart(data_dir: Path) -> None:
     selected_models = data_dir.parent / "large-drive" / "models"
     initial_settings = AppSettings(

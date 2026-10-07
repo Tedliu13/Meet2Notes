@@ -716,6 +716,20 @@ language. The selection is saved for the workspace and applies across pages.
 This changes the interface language; transcription language and AI output
 instructions remain separately configurable.
 
+To standardize Chinese transcripts, select **Traditional Chinese (Taiwan)** in
+Settings → General → Chinese transcript script. New final Chinese transcripts
+are converted locally with OpenCC `s2tw`, including stored word text, before
+notes, search, RAG and exports read them. Timestamps and speaker assignment stay
+intact. This converts character forms without rewriting regional vocabulary or
+correcting recognition errors. Original segment text is retained in metadata
+when changed. Existing transcripts are not converted automatically.
+Faster Whisper's provisional segments also convert when Chinese is detected;
+other engines with unknown language may display original text until completion.
+English translation and non-Chinese transcripts are preserved. Coolify seeds the
+setting as `traditional`; desktop defaults to `original`. The environment value
+`M2N_CHINESE_TRANSCRIPT_SCRIPT` only initializes a missing workspace preference;
+subsequent changes use the saved setting. Jobs snapshot it when submitted.
+
 AI can be useful for a first draft, but it is not a substitute for native
 review. We deliberately rely on native-speaking contributors to make wording,
 tone, and product terminology feel right in their language. Pull requests from

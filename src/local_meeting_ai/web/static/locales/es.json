@@ -87,6 +87,10 @@
   "mcp.status_enabled": "Activado · los clientes de escritorio pueden usar las herramientas de solo lectura de Meet2Notes mientras la aplicación esté ejecutándose.",
   "mcp.title": "Clientes MCP de escritorio",
   "literal": {
+    "Chinese transcript script": "Escritura de la transcripción en chino",
+    "Applies to new final Chinese transcripts. Existing transcripts and AI output language are unchanged.": "Se aplica a las nuevas transcripciones finales en chino. No cambia las transcripciones existentes ni el idioma de salida de la IA.",
+    "Keep model output": "Conservar la salida del modelo",
+    "Traditional Chinese (Taiwan)": "Chino tradicional (Taiwán)",
     "Your file is uploaded to this private server. Remote AI processing occurs when configured.": "El archivo se carga en este servidor privado. El procesamiento remoto con IA se utiliza cuando está configurado.",
     "Automatic context": "Contexto automático",
     "Choose a provider model or Custom. Use an API key for the selected provider.": "Elige un modelo del proveedor o Personalizado. Usa una clave API del proveedor seleccionado.",

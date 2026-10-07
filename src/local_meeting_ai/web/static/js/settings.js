@@ -1605,6 +1605,7 @@
         api("/api/mcp/configuration"),
       ]);
       $("#ui-language").value = preferences.ui_language;
+      $("#chinese-transcript-script").value = preferences.chinese_transcript_script || "original";
       $("#ui-theme").value = preferences.ui_theme || "system";
       $("#retention-days").value = preferences.retention_days || "";
       $("#confirm-delete").checked = preferences.confirm_permanent_delete;
@@ -1771,6 +1772,7 @@
         method: "PUT",
         body: JSON.stringify({
           ui_theme: uiTheme,
+          chinese_transcript_script: $("#chinese-transcript-script").value,
           http_port: Number($("#http-port").value),
           retention_days: retention ? Number(retention) : null,
           confirm_permanent_delete: $("#confirm-delete").checked,
