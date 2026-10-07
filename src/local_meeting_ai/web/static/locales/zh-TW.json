@@ -1,4 +1,9 @@
 {
+  "voice.saving": "正在儲存聲紋…",
+  "voice.saved": "已儲存 {name} 的聲紋，可用於辨識未來會議中的講者。",
+  "voice.saved_refresh_failed": "聲紋已儲存，但畫面更新失敗。請重新整理查看。",
+  "voice.remember_title": "要記住 {name} 的聲紋嗎？",
+  "voice.remember_description": "使用本次會議的聲紋樣本，在未來會議中自動辨識 {name}。",
   "hosted.upload_privacy": "檔案會上傳至此私人伺服器。設定遠端 AI 後，處理作業會使用遠端服務。",
   "settings.nemotron_diarization_description": "本機講者分析，使用連續講者快取處理長時間會議。",
   "settings.nemotron_diarization_note": "自動辨識最多 8 位講者。支援 CPU 或 CUDA，使用版本固定的獨立預覽執行環境，並支援已儲存的聲紋比對。",

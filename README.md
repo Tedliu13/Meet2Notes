@@ -57,6 +57,9 @@ log filters without disabling normal credential redaction.
 Hosted startup initializes LiteLLM before background workers. SQLite write
 transactions are serialized within the application process and begin with
 `BEGIN IMMEDIATE` to avoid competing read-to-write upgrades during concurrent jobs.
+The remember-voice dialog shows saving progress and restores its button after
+each request; a failed save stays open for retry, while a refresh failure is
+reported separately from a successful save.
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)

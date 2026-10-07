@@ -985,14 +985,20 @@
 
   async function rememberSpeakerVoice(speakerId) {
     const speaker = lastDetail?.speakers?.find((item) => Number(item.id) === Number(speakerId));
-    if (!speaker) return;
+    if (!speaker) return false;
     try {
       const profile = await api(`/api/transcriptions/${activeTranscriptionId}/speakers/${speaker.id}/remember`, { method: "POST" });
-      toast(`${profile.name} will be recognized in future meetings.`);
-      await selectTranscription(activeTranscriptionId);
+      toast(t("voice.saved", { name: profile.name }));
     } catch (error) {
       toast(error.message, "error");
+      return false;
     }
+    try {
+      await selectTranscription(activeTranscriptionId);
+    } catch (error) {
+      toast(t("voice.saved_refresh_failed"), "error");
+    }
+    return true;
   }
 
   function isGeneratedSpeakerName(value) {
@@ -1002,9 +1008,9 @@
   function offerToRememberRenamedVoice(speaker) {
     pendingRememberSpeakerId = speaker.id;
     document.querySelector("#remember-voice-title").textContent =
-      `Remember ${speaker.display_name}'s voice?`;
+      t("voice.remember_title", { name: speaker.display_name });
     document.querySelector("#remember-voice-description").textContent =
-      `Use the voice sample from this meeting to recognize ${speaker.display_name} automatically in future meetings.`;
+      t("voice.remember_description", { name: speaker.display_name });
     if (!rememberVoiceDialog.open) rememberVoiceDialog.showModal();
   }
 
@@ -2851,13 +2857,22 @@
     });
   });
   document.querySelector("#remember-renamed-voice").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
     const speakerId = pendingRememberSpeakerId;
-    if (!speakerId) return;
-    event.currentTarget.disabled = true;
-    rememberVoiceDialog.close();
-    pendingRememberSpeakerId = null;
-    await rememberSpeakerVoice(speakerId);
-    event.currentTarget.disabled = false;
+    if (!speakerId || button.disabled) return;
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = t("voice.saving");
+    try {
+      const saved = await rememberSpeakerVoice(speakerId);
+      if (saved && pendingRememberSpeakerId === speakerId) {
+        rememberVoiceDialog.close();
+        pendingRememberSpeakerId = null;
+      }
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
+    }
   });
   rememberVoiceDialog.addEventListener("click", (event) => {
     if (event.target !== rememberVoiceDialog) return;

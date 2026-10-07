@@ -1,4 +1,9 @@
 {
+  "voice.saving": "Guardando voz…",
+  "voice.saved": "La voz de {name} se guardó para reconocerle en futuras reuniones.",
+  "voice.saved_refresh_failed": "La voz se guardó, pero la página no pudo actualizarse. Recarga para verla.",
+  "voice.remember_title": "¿Guardar la voz de {name}?",
+  "voice.remember_description": "Usar la muestra de voz de esta reunión para reconocer a {name} automáticamente en futuras reuniones.",
   "hosted.upload_privacy": "El archivo se carga en este servidor privado. El procesamiento remoto con IA se utiliza cuando está configurado.",
   "settings.nemotron_diarization_description": "Análisis local de hablantes con una caché continua de voces para reuniones largas.",
   "settings.nemotron_diarization_note": "Hasta 8 hablantes, detectados automáticamente. CPU o CUDA. Usa un entorno privado con una versión preliminar fijada. Compatible con el reconocimiento de voces guardadas.",
