@@ -54,6 +54,9 @@ LiteLLM profiles. Configuration and index rebuild steps are in the deployment gu
 The image checks LiteLLM initialization and logging before deployment. Failed
 lazy imports preserve the original traceback and quarantine newly added broken
 log filters without disabling normal credential redaction.
+Hosted startup initializes LiteLLM before background workers. SQLite write
+transactions are serialized within the application process and begin with
+`BEGIN IMMEDIATE` to avoid competing read-to-write upgrades during concurrent jobs.
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)

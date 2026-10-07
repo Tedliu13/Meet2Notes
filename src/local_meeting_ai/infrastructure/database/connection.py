@@ -6,11 +6,15 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from threading import RLock
 
 
 class Database:
     def __init__(self, path: Path) -> None:
         self.path = path
+        # One application process shares this Database across HTTP handlers and
+        # engine workers. Serialize writes without blocking independent readers.
+        self._write_lock = RLock()
 
     def connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=5, check_same_thread=False)
@@ -42,13 +46,16 @@ class Database:
 
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:
-        connection = self.connect()
-        try:
-            connection.execute("BEGIN")
-            yield connection
-            connection.commit()
-        except Exception:
-            connection.rollback()
-            raise
-        finally:
-            connection.close()
+        with self._write_lock:
+            connection = self.connect()
+            try:
+                # Acquire the writer before reading: a deferred read snapshot
+                # cannot always be upgraded after another writer commits in WAL.
+                connection.execute("BEGIN IMMEDIATE")
+                yield connection
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                connection.close()

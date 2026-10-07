@@ -134,6 +134,10 @@ Migration 在啟動時由 `MigrationRunner.apply()` 執行編號 SQL，已套用
 
 ### LiteLLM 初始化與錯誤日誌
 
+Hosted 啟動在工作佇列之前同步初始化已安裝的 LiteLLM，減少摘要／RAG worker 與 asyncio 日誌同時匯入模組造成 `_ModuleLock` deadlock 的機會；載入失敗會保留 traceback，其他功能仍可啟動。此修正沒有更換 LiteLLM 版本，不代表外部 API 連線已驗證。
+
+若轉錄在 `append_segment` 出現 `sqlite3.OperationalError: database is locked`，代表儲存片段時有資料庫鎖競爭。Repository 的共用 Database 現在於同一 app process 內序列化寫入交易，並使用 `BEGIN IMMEDIATE` 在讀取前取得 writer，避免 WAL 讀取快照升級寫入失敗。讀取仍使用獨立連線；保留 WAL、SQLite 格式及 migrations，不重跑模型／API。這不是跨容器鎖，仍只允許單一 replica。不要靠刪除 SQLite、WAL 或 volume 處理鎖競爭。
+
 若 traceback 出現 `litellm/_logging.py` → `rust_bridge/diagnostics.py` → `KeyError: 'litellm'`，表示日誌過濾器本身失敗，這段 traceback 不能單獨證明影片解碼、轉錄、OOM 或原生推論當機。摘要與 RAG 共用的 LiteLLM 載入入口會保留初始化例外的 chained traceback，將此次失敗新增的 LiteLLM 過濾器替換成安全診斷過濾器；正常初始化的密鑰遮蔽不變。安全過濾器只記錄例外類型及堆疊位置，省略可能含密鑰／逐字稿的訊息與附加欄位。此修正不自動重送 API 請求，也不恢復中斷工作。
 
 Docker build 另以非 root 使用者檢查 LiteLLM 初始化、completion／embedding 入口及 asyncio logging。檢查只使用套件內建 cost map（`LITELLM_LOCAL_MODEL_COST_MAP=True` 僅用於此 build 步驟），不呼叫 API、不下載模型。不應以 `LITELLM_DISABLE_REDACT_SECRETS=true` 規避錯誤。實際 API 連線仍須部署後驗證。

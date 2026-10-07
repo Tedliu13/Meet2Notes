@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import logging
 import time
 from collections.abc import AsyncIterator
@@ -14,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from local_meeting_ai import __version__
+from local_meeting_ai.adapters.litellm_runtime import load_litellm
 from local_meeting_ai.api.hosted import HostedMiddleware
 from local_meeting_ai.api.library_routes import router as library_router
 from local_meeting_ai.api.live_assistant_routes import router as live_assistant_router
@@ -88,6 +90,16 @@ def create_app(
     @asynccontextmanager
     async def lifespan(lifespan_app: FastAPI) -> AsyncIterator[None]:
         logger.info("Starting Meet2Notes services")
+        # LiteLLM installs asyncio logging filters during import. Initialize on
+        # the startup thread before queued jobs and their native workers can log
+        # while that module graph is only partially imported.
+        if resolved_settings.hosted and importlib.util.find_spec("litellm") is not None:
+            try:
+                load_litellm()
+            except CapabilityUnavailableError:
+                logger.exception("LiteLLM startup initialization failed")
+            else:
+                logger.info("LiteLLM initialized before background job workers")
         await container.queue.start()
         logger.info("Background job queue is ready")
         await container.webhook_service.start()

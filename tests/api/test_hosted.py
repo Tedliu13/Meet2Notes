@@ -40,6 +40,49 @@ def test_authentication_and_host_validation(hosted_client):
     assert hosted_client.get("/api/health", headers={"Host": "evil.example"}).status_code == 400
 
 
+@pytest.mark.parametrize("initialization_fails", [False, True])
+def test_litellm_initializes_before_jobs_and_failure_keeps_health_available(
+    settings, monkeypatch, initialization_fails
+):
+    from importlib.machinery import ModuleSpec
+
+    from local_meeting_ai.api import app as app_module
+    from local_meeting_ai.domain.errors import CapabilityUnavailableError
+    from local_meeting_ai.infrastructure.jobs import LocalJobQueue
+
+    events = []
+    original_find = app_module.importlib.util.find_spec
+    original_start = LocalJobQueue.start
+    monkeypatch.setattr(
+        app_module.importlib.util, "find_spec",
+        lambda name: ModuleSpec("litellm", None) if name == "litellm" else original_find(name),
+    )
+
+    def initialize():
+        events.append("litellm")
+        if initialization_fails:
+            raise CapabilityUnavailableError("dependency failure")
+
+    async def start(queue):
+        events.append("jobs")
+        await original_start(queue)
+
+    monkeypatch.setattr(app_module, "load_litellm", initialize)
+    monkeypatch.setattr(LocalJobQueue, "start", start)
+    previous = keyring.get_keyring()
+    configured = settings.model_copy(update={
+        "hosted": True, "allowed_hosts": "meet2notes.ncdrcc.com",
+        "auth_username": "owner", "auth_password": "test-password",
+        "secrets_key": Fernet.generate_key().decode(),
+    })
+    try:
+        with TestClient(create_app(configured)) as client:
+            assert client.get("/api/health").status_code == 200
+            assert events == ["litellm", "jobs"]
+    finally:
+        keyring.set_keyring(previous)
+
+
 def test_hosted_import_workspace_and_disabled_capture(hosted_client):
     hosted_client.auth = ("owner", "test-password")
     assert 'data-hosted="true"' in hosted_client.get("/").text
