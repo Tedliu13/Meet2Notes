@@ -132,6 +132,22 @@ Migration 在啟動時由 `MigrationRunner.apply()` 執行編號 SQL，已套用
 
 上線前至少以一份測試會議驗證重新部署資料保留及備份／還原；目前尚未在正式平台驗證。
 
+### LiteLLM 初始化與錯誤日誌
+
+若 traceback 出現 `litellm/_logging.py` → `rust_bridge/diagnostics.py` → `KeyError: 'litellm'`，表示日誌過濾器本身失敗，這段 traceback 不能單獨證明影片解碼、轉錄、OOM 或原生推論當機。摘要與 RAG 共用的 LiteLLM 載入入口會保留初始化例外的 chained traceback，將此次失敗新增的 LiteLLM 過濾器替換成安全診斷過濾器；正常初始化的密鑰遮蔽不變。安全過濾器只記錄例外類型及堆疊位置，省略可能含密鑰／逐字稿的訊息與附加欄位。此修正不自動重送 API 請求，也不恢復中斷工作。
+
+Docker build 另以非 root 使用者檢查 LiteLLM 初始化、completion／embedding 入口及 asyncio logging。檢查只使用套件內建 cost map（`LITELLM_LOCAL_MODEL_COST_MAP=True` 僅用於此 build 步驟），不呼叫 API、不下載模型。不應以 `LITELLM_DISABLE_REDACT_SECRETS=true` 規避錯誤。實際 API 連線仍須部署後驗證。
+
+管理者請從 **應用容器的 Terminal** 取得 `/data/logs/meet2notes.log`、輪替檔與 `/data/logs/native-fault.log` 中當機時間前後的記錄；VM 主機的 `/data` 不是容器的 named volume 路徑。對照 `Started ... job`、`Job ... failed` 的 UUID，以及 Coolify 容器重啟時間／退出狀態。`OOMKilled=true` 才是明確的容器 OOM 證據，退出碼 137 單獨不能確定 OOM；SIGKILL 不會留下 Python fatal traceback。可先用以下指令取得版本與檔案末段，不需提供金鑰：
+
+```sh
+python -c "from importlib.metadata import version; print('litellm:', version('litellm'))"
+tail -n 300 /data/logs/meet2notes.log
+tail -n 100 /data/logs/native-fault.log
+```
+
+無法辨認原始工作階段時，先保留上述記錄，避免反覆 Rebuild 掩蓋時間線。這段日誌相容性修正尚不能證明 40 分鐘影片的實際故障原因已排除。
+
 ## 7. 遠端 MCP
 
 保留原有 read-only stdio MCP gateway。桌面客戶端須本地安裝此版本 Meet2Notes 的 MCP runtime，設定：

@@ -51,6 +51,9 @@ The Coolify image builds llama-cpp-python from source with conservative CPU
 instruction settings for VM compatibility; rebuild the image to apply this.
 AI notes, RAG answers and RAG embeddings can use OpenAI through the existing
 LiteLLM profiles. Configuration and index rebuild steps are in the deployment guide.
+The image checks LiteLLM initialization and logging before deployment. Failed
+lazy imports preserve the original traceback and quarantine newly added broken
+log filters without disabling normal credential redaction.
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)

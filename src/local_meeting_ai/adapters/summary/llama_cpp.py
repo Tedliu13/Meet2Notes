@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from local_meeting_ai.adapters.litellm_compat import completion as litellm_completion
+from local_meeting_ai.adapters.litellm_runtime import load_litellm
 from local_meeting_ai.adapters.prompt_cache import cache_arguments
 from local_meeting_ai.application.summary_templates import render_summary_template
 from local_meeting_ai.domain.entities import SummaryResult
@@ -1174,11 +1175,7 @@ class LlamaCppSummaryEngine:
         on_token: Callable[[str], None] | None = None,
         is_cancelled: CancellationCheck = lambda: False,
     ) -> dict[str, Any]:
-        if importlib.util.find_spec("litellm") is None:
-            raise CapabilityUnavailableError(
-                'LiteLLM is not installed. Run: python -m pip install -e ".[summaries]"'
-            )
-        litellm = importlib.import_module("litellm")
+        litellm = load_litellm()
         key: str
         if config.get("profile_id") == "ollama":
             key = ""  # Do not access or forward another provider's credentials.

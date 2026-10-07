@@ -79,6 +79,18 @@ print('Faster Whisper WAV decode passed', flush=True)
 PY
 
 USER 10001:10001
+# Catch dependency initialization failures before deploying a broken runtime.
+# Uses LiteLLM's bundled cost map; no credentials, API calls or model downloads.
+RUN LITELLM_LOCAL_MODEL_COST_MAP=True python - <<'PY'
+import logging
+from importlib.metadata import version
+from local_meeting_ai.adapters.litellm_runtime import load_litellm
+
+client = load_litellm()
+assert callable(client.completion) and callable(client.embedding)
+logging.getLogger('asyncio').warning('Meet2Notes LiteLLM logging smoke test')
+print('LiteLLM initialization and logging passed: ' + version('litellm'), flush=True)
+PY
 EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
     CMD python -c "import json,urllib.request; r=json.load(urllib.request.urlopen('http://127.0.0.1:8765/api/health',timeout=4)); raise SystemExit(r['status'] != 'ok')"

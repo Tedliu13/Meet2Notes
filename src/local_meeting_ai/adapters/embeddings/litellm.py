@@ -7,6 +7,7 @@ import os
 from typing import Any, cast
 
 from local_meeting_ai.adapters.litellm_compat import embedding as litellm_embedding
+from local_meeting_ai.adapters.litellm_runtime import load_litellm
 from local_meeting_ai.adapters.summary.credentials import get_litellm_api_key
 from local_meeting_ai.domain.errors import CapabilityUnavailableError
 
@@ -61,9 +62,7 @@ class LiteLLMEmbeddingProvider:
         texts: list[str],
         config: dict[str, Any],
     ) -> list[list[float]]:
-        if importlib.util.find_spec("litellm") is None:
-            raise CapabilityUnavailableError("LiteLLM is not installed")
-        litellm = importlib.import_module("litellm")
+        litellm = load_litellm()
         key = get_litellm_api_key() or os.getenv(str(config.get("api_key_env") or ""), "")
         arguments: dict[str, Any] = {
             "model": str(config.get("embedding_model") or ""),
