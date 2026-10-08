@@ -642,7 +642,7 @@
     }
   }
 
-  async function selectTranscription(transcriptionId) {
+  async function selectTranscription(transcriptionId, { throwOnError = false } = {}) {
     const requestGeneration = ++transcriptRequestGeneration;
     ++transcriptRenderGeneration;
     activeTranscriptionId = Number(transcriptionId);
@@ -650,9 +650,9 @@
     document.querySelector("#editor-meta").textContent = t("transcript.loading");
     try {
       const detail = await api(`/api/transcriptions/${activeTranscriptionId}`);
-      if (requestGeneration !== transcriptRequestGeneration) return;
+      if (requestGeneration !== transcriptRequestGeneration) return false;
       await renderTranscript(detail);
-      if (requestGeneration !== transcriptRequestGeneration) return;
+      if (requestGeneration !== transcriptRequestGeneration) return false;
       if (pendingSearchSegment) {
         const segment = detail.segments.find((item) => item.id === pendingSearchSegment);
         pendingSearchSegment = null;
@@ -669,10 +669,13 @@
           }
         } else toast(t("library.jump_missing"), "error");
       }
+      return true;
     } catch (error) {
-      if (requestGeneration !== transcriptRequestGeneration) return;
+      if (requestGeneration !== transcriptRequestGeneration) return false;
       segmentContainer.removeAttribute("aria-busy");
+      if (throwOnError) throw error;
       toast(error.message, "error");
+      return false;
     }
   }
 
@@ -1443,7 +1446,7 @@
     if (!speakerRebuildDialog.open) speakerRebuildDialog.showModal();
   }
 
-  function renderSpeakerRebuildJob(job) {
+  function renderSpeakerRebuildJob(job, { resultsRefreshed = false } = {}) {
     if (!job) return;
     const terminal = ["completed", "failed", "cancelled"].includes(job.status);
     const progress = job.status === "completed"
@@ -1468,9 +1471,16 @@
             : (job.message || (job.status === "completed" ? "Speaker identification complete" : "Identifying speakers..."));
     document.querySelector("#speaker-rebuild-background").hidden = terminal;
     document.querySelector("#speaker-rebuild-done").hidden = !terminal;
+    const detected = job.result?.speaker_count;
+    const requested = job.payload?.speaker_count;
+    const resultDescription = Number.isInteger(detected)
+      ? (Number.isInteger(requested) && requested > 0
+        ? t("speaker.rebuild_counts", { requested, detected })
+        : t("speaker.rebuild_detected", { detected }))
+      : "The speaker results have been updated.";
     document.querySelector("#speaker-rebuild-description").textContent = terminal
       ? (job.status === "completed"
-        ? "The speaker results have been updated."
+        ? (resultsRefreshed ? resultDescription : t("transcript.loading"))
         : "The existing speaker results remain available.")
       : "Only diarization is running. The transcript and AI notes are unchanged.";
     if (!speakerRebuildDismissed && !speakerRebuildDialog.open) {
@@ -1485,7 +1495,9 @@
     if (speakerRebuildRefreshPromise) return speakerRebuildRefreshPromise;
     speakerRebuildRefreshPromise = (async () => {
       if (job.status === "completed" && activeTranscriptionId) {
-        await selectTranscription(activeTranscriptionId);
+        const refreshed = await selectTranscription(activeTranscriptionId, { throwOnError: true });
+        if (refreshed === false) return;
+        renderSpeakerRebuildJob(job, { resultsRefreshed: true });
         toast("Speaker identification rebuilt.", "success");
       } else {
         renderSpeakerPanel();
@@ -3232,8 +3244,16 @@
     // Refresh each affected view before acknowledging the entire batch.
     if (newlyTerminal.some((job) => ["transcribe", "diarize"].includes(job.job_type))) {
       versions = await api(`/api/meetings/${meetingId}/transcriptions`);
-      const preferred = versions.find((item) => item.is_active) || versions[0];
-      if (preferred) await selectTranscription(preferred.id);
+      // A diarization completion must not switch away from the version the user
+      // rebuilt. Only a newly finished transcription selects the active version.
+      const finishedTranscription = newlyTerminal.some((job) => job.job_type === "transcribe");
+      const preferred = (!finishedTranscription && versions.find((item) =>
+        Number(item.id) === Number(activeTranscriptionId))) ||
+        versions.find((item) => item.is_active) || versions[0];
+      if (preferred) {
+        const refreshed = await selectTranscription(preferred.id, { throwOnError: true });
+        if (refreshed === false) throw new Error("Transcript refresh was superseded; retrying");
+      }
     }
     if (newlyTerminal.some((job) => job.job_type === "summarize" &&
         job.payload?.summary_scope !== "speaker")) {

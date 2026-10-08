@@ -1,6 +1,8 @@
 {
   "speaker.rebuild_queued": "En cola; esperando un trabajador.",
   "speaker.rebuild_starting": "El trabajo comenzó; esperando el progreso del motor…",
+  "speaker.rebuild_counts": "Actualizado: se solicitaron {requested} hablantes; se detectaron {detected}. El número solicitado no garantiza voz utilizable en cada grupo.",
+  "speaker.rebuild_detected": "Actualizado: se detectaron {detected} hablantes.",
   "voice.link_title": "Asignar a una persona existente",
   "voice.link_action": "Asignar a persona",
   "voice.link_description": "Usa una identidad de voz guardada. Las muestras de audio y los tiempos de la transcripción no cambian.",

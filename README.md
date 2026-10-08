@@ -72,6 +72,9 @@ Speaker identification rebuilds also poll their job every five seconds, so an
 interrupted event stream does not leave the dialog on an old Starting snapshot.
 Queued and zero-progress running jobs show indeterminate progress until the
 engine reports a measurable stage. This does not retry or duplicate inference.
+Completion shows the requested and detected speaker counts, which may differ.
+Failed or superseded result reads keep retrying, and diarization completion
+retains the selected transcript version instead of switching to another version.
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)

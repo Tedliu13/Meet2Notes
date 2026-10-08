@@ -60,6 +60,21 @@ test('one snapshot refreshes every affected view and ignores other meetings', as
   assert.equal(state.rendered.length, 1);
   assert.equal(state.terminalJobIds.has('other'), false);
 });
+
+test('diarization completion retains the selected rebuilt version instead of switching to an older active version', async () => {
+  const state = workspace();
+  state.activeTranscriptionId = 39;
+  state.api = async () => [{ id: 38, is_active: true }, { id: 39, is_active: false }];
+  await state.applyJobUpdates([job('second-rebuild', 'diarize', { payload: { transcription_id: 39 } })]);
+  assert.deepEqual(state.selected, [39]);
+});
+
+test('a superseded transcript refresh does not acknowledge the completed job', async () => {
+  const state = workspace();
+  state.selectTranscription = async () => false;
+  await assert.rejects(state.applyJobUpdates([job('diarize', 'diarize')]), /superseded/);
+  assert.equal(state.terminalJobIds.size, 0);
+});
 test('failed refresh is retried even if SSE sends no further changes', async () => {
   const state = workspace();
   const original = state.api;

@@ -1,6 +1,8 @@
 {
   "speaker.rebuild_queued": "Queued; waiting for a job worker.",
   "speaker.rebuild_starting": "The job has started; waiting for the engine to report progress…",
+  "speaker.rebuild_counts": "Updated: requested {requested} speakers; detected {detected}. The requested count does not guarantee usable speech in every cluster.",
+  "speaker.rebuild_detected": "Updated: detected {detected} speakers.",
   "voice.link_title": "Assign to an existing person",
   "voice.link_action": "Assign to person",
   "voice.link_description": "Use an existing saved voice identity. Audio samples and transcript timing stay unchanged.",

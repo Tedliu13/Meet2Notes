@@ -1,6 +1,8 @@
 {
   "speaker.rebuild_queued": "工作已排隊，等待工作執行緒。",
   "speaker.rebuild_starting": "工作已啟動，等待引擎回報進度…",
+  "speaker.rebuild_counts": "已更新：設定 {requested} 人，實際辨識 {detected} 位講者。設定人數不保證每群都有有效發言片段。",
+  "speaker.rebuild_detected": "已更新：實際辨識 {detected} 位講者。",
   "voice.link_title": "歸入既有人物",
   "voice.link_action": "歸入既有人物",
   "voice.link_description": "選擇已儲存聲紋的人物。聲音樣本與逐字稿時間戳記保持不變。",
