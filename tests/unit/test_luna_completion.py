@@ -113,3 +113,47 @@ def test_refusal_does_not_expose_provider_text(caplog):
     ) as error:
         llama_cpp.LlamaCppSummaryEngine._completion_content(result)
     assert "PRIVATE TEXT" not in caplog.text + str(error.value)
+
+
+def test_nonempty_truncated_output_is_not_accepted_as_complete(remote_engine):
+    engine, calls, module = remote_engine
+    module.completion = lambda **kwargs: calls.append(kwargs) or {
+        "choices": [{"message": {"content": "PRIVATE PARTIAL NOTE"}, "finish_reason": "length"}],
+        "usage": {"completion_tokens": 1024},
+    }
+    result = engine._litellm_completion([], {"model": "openai/gpt-6-luna", "api_key": ""})
+    with pytest.raises(CapabilityUnavailableError, match="truncated") as error:
+        engine._completion_content(result)
+    assert len(calls) == 1
+    assert "Output tokens" in str(error.value)
+    assert "PRIVATE PARTIAL NOTE" not in str(error.value)
+
+
+def test_streamed_partial_text_with_length_finish_is_not_complete(remote_engine):
+    engine, _, module = remote_engine
+    module.completion = lambda **kwargs: iter([
+        {"choices": [{"delta": {"content": "First paragraph"}}]},
+        {"choices": [{"delta": {}, "finish_reason": "length"}]},
+    ])
+    fragments = []
+    result = engine._litellm_completion(
+        [], {"model": "openai/gpt-6-luna", "api_key": ""}, on_token=fragments.append,
+    )
+    assert fragments == ["First paragraph"]
+    with pytest.raises(CapabilityUnavailableError, match="truncated"):
+        engine._completion_content(result)
+
+
+def test_local_stream_keeps_length_finish_reason(remote_engine, monkeypatch):
+    engine, _, _ = remote_engine
+    monkeypatch.setattr(engine, "_fits_context", lambda *args: True)
+    model = SimpleNamespace(create_chat_completion=lambda **kwargs: iter([
+        {"choices": [{"delta": {"content": "Partial notes"}}]},
+        {"choices": [{"delta": {}, "finish_reason": "length"}]},
+    ]))
+    result = engine._complete_once(
+        model, [], {}, 128, lambda *args: None, lambda: False, 0.2, 0.9, "Generating notes",
+    )
+    assert result["choices"][0]["finish_reason"] == "length"
+    with pytest.raises(CapabilityUnavailableError, match="truncated"):
+        engine._completion_content(result)

@@ -687,6 +687,7 @@ class LlamaCppSummaryEngine:
             stream=True,
         )
         parts: list[str] = []
+        finish_reason: str | None = None
         try:
             for index, chunk in enumerate(chunks):
                 if is_cancelled():
@@ -695,6 +696,8 @@ class LlamaCppSummaryEngine:
                 if chunk.get("prompt_progress") and callable(on_context):
                     on_context(chunk["prompt_progress"])
                 choice = (chunk.get("choices") or [{}])[0]
+                if choice.get("finish_reason"):
+                    finish_reason = choice["finish_reason"]
                 text = choice.get("delta", {}).get("content") or choice.get("text", "")
                 if text:
                     parts.append(str(text))
@@ -716,7 +719,8 @@ class LlamaCppSummaryEngine:
             if close:
                 close()
         return {
-            "choices": [{"message": {"content": "".join(parts)}}],
+            "choices": [{"message": {"content": "".join(parts)},
+                         "finish_reason": finish_reason}],
             "usage": {},
         }
 
@@ -936,14 +940,20 @@ class LlamaCppSummaryEngine:
             "LLM completion: finish_reason=%s completion_tokens=%s reasoning_tokens=%s",
             reason, completion_tokens, reasoning_tokens,
         )
+        if reason == "length":
+            description = (
+                "The AI engine returned an empty summary because the output token limit "
+                "was reached before visible text was produced."
+                if not content or not str(content).strip()
+                else "The AI engine reached the output token limit; the generated text is "
+                "truncated and was not accepted as a complete result."
+            )
+            raise CapabilityUnavailableError(
+                f"{description} Increase Output tokens in AI Engine settings or reduce "
+                "reasoning effort; the request was not replayed. "
+                f"completion_tokens={completion_tokens}, reasoning_tokens={reasoning_tokens}"
+            )
         if not content or not str(content).strip():
-            if reason == "length":
-                raise CapabilityUnavailableError(
-                    "The AI engine returned an empty summary because the output token limit "
-                    "was reached before visible text was produced. Increase the maximum output "
-                    "tokens or reduce reasoning effort; the request was not replayed. "
-                    f"completion_tokens={completion_tokens}, reasoning_tokens={reasoning_tokens}"
-                )
             if reason == "content_filter" or choice.get("message", {}).get("refusal"):
                 raise CapabilityUnavailableError(
                     "The AI engine declined to produce a summary; the request was not replayed"

@@ -54,6 +54,9 @@ LiteLLM profiles. Configuration and index rebuild steps are in the deployment gu
 GPT-6 Luna meeting text generation defaults to `reasoning_effort=none` so a small
 output budget is not spent entirely on hidden reasoning. Empty results report
 the finish reason and token counts without logging text or replaying the request.
+An explicit `length` finish is rejected even when partial text is present, so
+truncated notes are not marked complete. Increase AI Engine **Output tokens**
+for longer notes; the saved setting applies to newly submitted jobs.
 The image checks LiteLLM initialization and logging before deployment. Failed
 lazy imports preserve the original traceback and quarantine newly added broken
 log filters without disabling normal credential redaction.

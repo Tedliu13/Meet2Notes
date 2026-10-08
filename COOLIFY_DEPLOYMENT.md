@@ -87,6 +87,10 @@ RAG 的 Embedding model 另選 `Custom local / remote via LiteLLM`，填 `openai
 
 `Wrapper: Completed Call` 僅表示 API 呼叫結束，不保證有可見文字；`LLM prompt cache` 的 reused 數字是輸入快取命中，不是摘要輸出量。新版記錄 `LLM completion: finish_reason=... completion_tokens=... reasoning_tokens=...`，空白輸出會區分 token limit、拒絕生成與其他原因，不記錄逐字稿、回應內容、推理內容或 key，也不自動重送已完成請求。現有 log 若缺少這些欄位，不能直接斷言 token limit 就是原因。部署後由管理者以短逐字稿先驗證可見摘要，再測試原會議；若仍空白，保留這行診斷及工作 UUID。失敗工作可在原因排除後手動 Rebuild；不須刪除音訊、工作資料或持久化 volumes。無新環境變數與 migration。
 
+筆記尾段突然中止時，先確認 Settings → AI Engine → Output tokens；既有預設是 1024，詳細筆記可先設 8192 並儲存，確認 Settings log 的 `max_output_tokens=8192`，再手動 Rebuild。這是輸出 token 額度，不是逐字稿字數；提高 context tokens 不會增加輸出長度，修改設定也不會補回已生成筆記的尾段。提高額度可能增加生成時間與 API 費用，8192 不保證每份筆記都足夠。
+
+新版對遠端與本機引擎明確回傳的 `finish_reason=length`，即使有部分文字，也會判定結果不完整並使工作失敗，提示調整 Output tokens，不把截斷內容當成完整摘要保存；串流問答可能已顯示部分文字，最後仍會收到失敗訊息。引擎未回報停止原因時，無法僅靠結尾文字可靠偵測截斷。既有已完成但截斷的筆記不自動修補，需調整設定後重新生成；此程式修正須部署新版 image，不需資料 migration 或新增環境變數。
+
 資料庫、原始音檔、向量索引及檢索仍在 VM；摘要的會議文字／RAG 問答的相關片段與問題，以及 embedding 所需文字會送往 OpenAI。請在 Settings 輸入 key，不要貼至對話、Git 或 Docker build arguments。既有部署須保持相同 `M2N_SECRETS_KEY` 以讀取已保存 key。切換能移除這兩部分本機模型推論負擔，但網路、API 速率限制與文本長度仍影響延遲；本次只確認程式支援，未使用正式 key 做 API 實測。索引與生成均會產生 API 用量費用。[API 價格](https://developers.openai.com/api/docs/pricing)
 
 啟動不自動下載模型，也不需要先取得模型才能通過 health check。Nemotron 等引擎按原有流程在 model volume 建立 private runtime；不要刪除正在使用的模型或 runtime。
