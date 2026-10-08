@@ -147,6 +147,7 @@ def _speaker_from_row(row: Any) -> Speaker:
         display_name=row["display_name"],
         confidence=row["confidence"],
         created_at=row["created_at"],
+        profile_id=row["profile_id"] if "profile_id" in keys else None,
         segment_count=int(row["segment_count"]) if "segment_count" in keys else 0,
         talk_time_ms=int(row["talk_time_ms"] or 0) if "talk_time_ms" in keys else 0,
         summary_status=row["summary_status"] if "summary_status" in keys else None,

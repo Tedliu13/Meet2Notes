@@ -61,6 +61,13 @@ The remember-voice dialog shows saving progress and restores its button after
 each request; a failed save stays open for retry, while a refresh failure is
 reported separately from a successful save.
 
+Speaker cards also offer **Assign to person**: select an existing saved voice
+identity to link multiple detected speakers to the same person and use that
+person's name. This retains the saved audio sample and each speaker's segments,
+timestamps, exports and summaries; it does not merge speaker cards or train a
+new combined voiceprint. Re-running diarization rebuilds speakers, so review
+manual assignments again afterward. No database migration is required.
+
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)
 for Windows loopback, Linux monitors, and macOS virtual inputs.

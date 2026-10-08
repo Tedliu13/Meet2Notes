@@ -65,6 +65,7 @@ from local_meeting_ai.api.schemas import (
     RecordingResponse,
     SegmentUpdate,
     SpeakerNameUpdate,
+    SpeakerProfileLink,
     SpeakerProfileResponse,
     SpeakerProfileUpdate,
     SpeakerResponse,
@@ -2235,6 +2236,20 @@ async def remember_speaker_voice(
         transcription_id, speaker_id
     )
     return SpeakerProfileResponse.model_validate(profile)
+
+
+@router.post(
+    "/transcriptions/{transcription_id}/speakers/{speaker_id}/profile",
+    response_model=SpeakerResponse,
+)
+def link_speaker_profile(
+    transcription_id: int, speaker_id: int,
+    payload: SpeakerProfileLink, container: ContainerDependency,
+) -> SpeakerResponse:
+    speaker = container.speaker_service.link_existing_profile(
+        transcription_id, speaker_id, payload.profile_id
+    )
+    return SpeakerResponse.model_validate(speaker)
 
 
 @router.get("/speaker-profiles", response_model=list[SpeakerProfileResponse])

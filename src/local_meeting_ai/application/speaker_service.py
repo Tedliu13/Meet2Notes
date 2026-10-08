@@ -82,6 +82,26 @@ class SpeakerService:
             raise NotFoundError("Saved voice sample not found")
         return path
 
+    def link_existing_profile(
+        self, transcription_id: int, speaker_id: int, profile_id: int
+    ) -> Speaker:
+        transcription = self.transcriptions.get(transcription_id)
+        speaker = self.transcriptions.get_speaker(speaker_id)
+        if not transcription or not speaker or transcription.meeting_id != speaker.meeting_id:
+            raise NotFoundError("Speaker or transcription not found")
+        # Validate an existing usable sample. Linking never rewrites that sample
+        # or changes segment/turn timing and speaker identifiers.
+        if not any(
+            item.id == speaker_id
+            for item in self.transcriptions.speakers_for_transcription(transcription_id)
+        ):
+            raise NotFoundError("Speaker not found in this transcription")
+        self.profile_sample(profile_id)
+        linked = self.profiles.link_speaker(speaker_id, profile_id)
+        if not linked:
+            raise NotFoundError("Speaker not found")
+        return linked
+
     async def create_profile_from_speaker(
         self, transcription_id: int, speaker_id: int
     ) -> SpeakerProfile:

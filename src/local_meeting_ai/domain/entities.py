@@ -127,6 +127,7 @@ class Speaker:
     summary_provider: str | None = None
     summary_model: str | None = None
     summary_updated_at: str | None = None
+    profile_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

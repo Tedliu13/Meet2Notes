@@ -586,6 +586,7 @@ class SpeakerResponse(BaseModel):
     meeting_id: int
     stable_key: str | None
     display_name: str
+    profile_id: int | None = None
     confidence: float | None
     created_at: str
     segment_count: int
@@ -606,6 +607,12 @@ class SpeakerProfileResponse(BaseModel):
     created_at: str
     updated_at: str
     meeting_count: int = 0
+
+
+class SpeakerProfileLink(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    profile_id: int = Field(gt=0)
 
 
 class SpeakerProfileUpdate(BaseModel):

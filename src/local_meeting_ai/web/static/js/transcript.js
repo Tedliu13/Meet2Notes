@@ -30,6 +30,8 @@
   const speakerSummaryDialog = document.querySelector("#speaker-summary-dialog");
   const speakerRebuildDialog = document.querySelector("#speaker-rebuild-dialog");
   const rememberVoiceDialog = document.querySelector("#remember-voice-dialog");
+  const linkPersonDialog = document.querySelector("#link-person-dialog");
+  let pendingLinkPerson = null;
   const aiRebuildDialog = document.querySelector("#ai-rebuild-dialog");
   const aiUnsavedDialog = document.querySelector("#ai-unsaved-dialog");
   const exportDialog = document.querySelector("#export-dialog");
@@ -853,6 +855,8 @@
             <button type="button" class="text-button speaker-card-action" data-remember-speaker="${speaker.id}" title="Use this voice to recognize ${escapeHTML(speaker.display_name)} in future meetings">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0-9-9 9 9 0 0 0 9 9Z"/><path d="m8.5 12 2.3 2.3 4.8-5"/></svg> Remember this voice
             </button>
+            <button type="button" class="text-button speaker-card-action" data-link-person="${speaker.id}">${escapeHTML(t("voice.link_action"))}</button>
+            ${speaker.profile_id ? `<span class="speaker-card-action">${escapeHTML(t("voice.linked"))}</span>` : ""}
             <a class="text-button speaker-card-action" href="/api/transcriptions/${activeTranscriptionId}/speakers/${speaker.id}/audio?format=wav">Export WAV</a>
             <a class="text-button speaker-card-action" href="/api/transcriptions/${activeTranscriptionId}/speakers/${speaker.id}/audio?format=mp3">Export MP3</a>
           </div>
@@ -999,6 +1003,32 @@
       toast(t("voice.saved_refresh_failed"), "error");
     }
     return true;
+  }
+
+  async function openLinkPerson(speakerId) {
+    const speaker = lastDetail?.speakers?.find((item) => Number(item.id) === Number(speakerId));
+    if (!speaker) return;
+    const status = document.querySelector("#link-person-status");
+    const select = document.querySelector("#link-person-profile");
+    const submit = document.querySelector("#link-person-submit");
+    const target = { speakerId: speaker.id, transcriptionId: activeTranscriptionId };
+    pendingLinkPerson = target;
+    select.innerHTML = "";
+    submit.disabled = true;
+    status.textContent = t("voice.link_loading");
+    if (!linkPersonDialog.open) linkPersonDialog.showModal();
+    try {
+      const profiles = await api("/api/speaker-profiles");
+      if (pendingLinkPerson !== target) return;
+      const available = profiles.filter((profile) => profile.sample_path);
+      select.innerHTML = available.map((profile) =>
+        `<option value="${Number(profile.id)}">${escapeHTML(profile.name)}</option>`).join("");
+      if (available.some((profile) => profile.id === speaker.profile_id)) select.value = String(speaker.profile_id);
+      status.textContent = available.length ? t("voice.link_description") : t("voice.link_empty");
+      submit.disabled = !available.length;
+    } catch (error) {
+      if (pendingLinkPerson === target) status.textContent = error.message;
+    }
   }
 
   function isGeneratedSpeakerName(value) {
@@ -2850,6 +2880,37 @@
     }
   }));
 
+  document.querySelectorAll("[data-close-link-person]").forEach((button) => {
+    button.addEventListener("click", () => { pendingLinkPerson = null; linkPersonDialog.close(); });
+  });
+  linkPersonDialog.addEventListener("cancel", () => { pendingLinkPerson = null; });
+  document.querySelector("#link-person-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const target = pendingLinkPerson;
+    const button = document.querySelector("#link-person-submit");
+    if (!target || button.disabled) return;
+    const profileId = Number(document.querySelector("#link-person-profile").value);
+    if (!Number.isInteger(profileId) || profileId <= 0) return;
+    button.disabled = true;
+    document.querySelector("#link-person-status").textContent = t("voice.saving");
+    try {
+      await api(`/api/transcriptions/${target.transcriptionId}/speakers/${target.speakerId}/profile`, {
+        method: "POST", body: JSON.stringify({ profile_id: profileId }),
+      });
+      toast(t("voice.link_success"));
+      if (pendingLinkPerson === target) { pendingLinkPerson = null; linkPersonDialog.close(); }
+      if (activeTranscriptionId === target.transcriptionId) {
+        try { await selectTranscription(target.transcriptionId); }
+        catch (error) { toast(t("voice.link_refresh_failed"), "error"); }
+      }
+    } catch (error) {
+      if (pendingLinkPerson === target) document.querySelector("#link-person-status").textContent = error.message;
+      toast(error.message, "error");
+    } finally {
+      if (pendingLinkPerson === target) button.disabled = false;
+    }
+  });
+
   document.querySelectorAll("[data-close-remember-voice]").forEach((button) => {
     button.addEventListener("click", () => {
       pendingRememberSpeakerId = null;
@@ -2913,6 +2974,8 @@
       await rememberSpeakerVoice(remember.dataset.rememberSpeaker);
       return;
     }
+    const linkPerson = event.target.closest("[data-link-person]");
+    if (linkPerson) { await openLinkPerson(linkPerson.dataset.linkPerson); return; }
     const range = event.target.closest("[data-play-range-start]");
     if (range) {
       if (!audio.getAttribute("src")) {

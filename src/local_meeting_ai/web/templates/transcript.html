@@ -633,6 +633,20 @@
   </div>
 </dialog>
 {% set post_assistant_context = 'meeting' %}
+<dialog class="modal compact-modal" id="link-person-dialog" aria-labelledby="link-person-title">
+  <form class="modal-panel" id="link-person-form">
+    <div class="modal-header">
+      <div><h2 id="link-person-title" data-i18n="voice.link_title">Assign to an existing person</h2><p data-i18n="voice.link_description">Use an existing saved voice identity. Audio samples and transcript timing stay unchanged.</p></div>
+      <button type="button" class="icon-button close-button" data-close-link-person aria-label="Close">×</button>
+    </div>
+    <label><span data-i18n="voice.link_select">Saved person</span><select id="link-person-profile" required></select></label>
+    <p id="link-person-status" role="status" aria-live="polite"></p>
+    <div class="modal-actions">
+      <button type="button" class="button secondary" data-close-link-person>Cancel</button>
+      <button type="submit" class="button primary" id="link-person-submit" data-i18n="voice.link_action">Assign to person</button>
+    </div>
+  </form>
+</dialog>
 {% include "_post_meeting_assistant.html" %}
 {% include "_tags.html" %}
 {% endblock %}
