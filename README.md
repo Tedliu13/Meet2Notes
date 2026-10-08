@@ -51,6 +51,9 @@ The Coolify image builds llama-cpp-python from source with conservative CPU
 instruction settings for VM compatibility; rebuild the image to apply this.
 AI notes, RAG answers and RAG embeddings can use OpenAI through the existing
 LiteLLM profiles. Configuration and index rebuild steps are in the deployment guide.
+GPT-6 Luna meeting text generation defaults to `reasoning_effort=none` so a small
+output budget is not spent entirely on hidden reasoning. Empty results report
+the finish reason and token counts without logging text or replaying the request.
 The image checks LiteLLM initialization and logging before deployment. Failed
 lazy imports preserve the original traceback and quarantine newly added broken
 log filters without disabling normal credential redaction.

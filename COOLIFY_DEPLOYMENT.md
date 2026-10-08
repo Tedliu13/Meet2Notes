@@ -83,6 +83,10 @@ Settings 可下載本地 GGUF LLM，或設定外部 API。Ollama 若部署為另
 
 RAG 的 Embedding model 另選 `Custom local / remote via LiteLLM`，填 `openai/text-embedding-3-small`，base URL 留空，開啟 Enable historical RAG 並保存。它與 AI Engine 共用安全保存的 LiteLLM key，不須重複填同一把 key。更換 embedding model 後執行 Rebuild index，重新向量化已完成會議；舊 BGE-M3 向量不能和 OpenAI 向量混用。若要評估另一個 embedding model，可填 `openai/text-embedding-3-large`，切換後同樣要重建索引。[Embeddings 文件](https://developers.openai.com/api/docs/guides/embeddings)
 
+若改用 GPT-6 Luna，AI Engine 維持 LiteLLM，Model preset 選 `GPT-6 Luna` 或 Custom 填 `openai/gpt-6-luna`，保留 OpenAI key、base URL 留空並儲存。只換生成模型不須重建 embedding index。Luna 預設 medium 推理；completion 額度同時包含推理與可見文字，可能在額度耗盡時沒有摘要文字。[Luna 模型](https://developers.openai.com/api/docs/models/gpt-6-luna)、[推理與輸出額度](https://developers.openai.com/api/docs/guides/reasoning)。新版 adapter 對 Luna 預設 `reasoning_effort=none`，省略 sampling 參數並保留原本輸出額度；呼叫端若明確指定 reasoning effort 則保留。這是摘要、Prompt 與 RAG 問答文字生成的相容性修正，其他模型及 embedding 設定不變，套用程式修正須 rebuild／部署新版 image。
+
+`Wrapper: Completed Call` 僅表示 API 呼叫結束，不保證有可見文字；`LLM prompt cache` 的 reused 數字是輸入快取命中，不是摘要輸出量。新版記錄 `LLM completion: finish_reason=... completion_tokens=... reasoning_tokens=...`，空白輸出會區分 token limit、拒絕生成與其他原因，不記錄逐字稿、回應內容、推理內容或 key，也不自動重送已完成請求。現有 log 若缺少這些欄位，不能直接斷言 token limit 就是原因。部署後由管理者以短逐字稿先驗證可見摘要，再測試原會議；若仍空白，保留這行診斷及工作 UUID。失敗工作可在原因排除後手動 Rebuild；不須刪除音訊、工作資料或持久化 volumes。無新環境變數與 migration。
+
 資料庫、原始音檔、向量索引及檢索仍在 VM；摘要的會議文字／RAG 問答的相關片段與問題，以及 embedding 所需文字會送往 OpenAI。請在 Settings 輸入 key，不要貼至對話、Git 或 Docker build arguments。既有部署須保持相同 `M2N_SECRETS_KEY` 以讀取已保存 key。切換能移除這兩部分本機模型推論負擔，但網路、API 速率限制與文本長度仍影響延遲；本次只確認程式支援，未使用正式 key 做 API 實測。索引與生成均會產生 API 用量費用。[API 價格](https://developers.openai.com/api/docs/pricing)
 
 啟動不自動下載模型，也不需要先取得模型才能通過 health check。Nemotron 等引擎按原有流程在 model volume 建立 private runtime；不要刪除正在使用的模型或 runtime。

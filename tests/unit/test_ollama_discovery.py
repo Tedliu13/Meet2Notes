@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -107,6 +108,7 @@ def test_environment_host_is_normalized(monkeypatch: Any) -> None:
 
 
 def test_ollama_context_and_credentials_are_isolated(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setattr(llama_cpp, "load_litellm", lambda: SimpleNamespace())
     key_reads = []
     monkeypatch.setattr(
         llama_cpp, "get_litellm_api_key", lambda: key_reads.append(True) or "other-provider-secret"

@@ -920,15 +920,43 @@ class LlamaCppSummaryEngine:
     def _completion_content(
         result: dict[str, Any],
     ) -> tuple[str, int | None, int | None]:
-        choice = result.get("choices", [{}])[0]
+        choice = (result.get("choices") or [{}])[0]
         content = choice.get("message", {}).get("content") or choice.get("text")
-        if not content:
-            raise CapabilityUnavailableError("The AI engine returned an empty summary")
-        usage = result.get("usage", {})
+        usage = result.get("usage") or {}
+        reason = choice.get("finish_reason")
+        # Never log response text, refusal text, reasoning text or the request.
+        reason = (
+            reason if reason in {"stop", "length", "content_filter", "tool_calls"} else "unknown"
+        )
+        completion_tokens = _optional_int(usage.get("completion_tokens"))
+        reasoning_tokens = _optional_int(
+            (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")
+        )
+        logger.info(
+            "LLM completion: finish_reason=%s completion_tokens=%s reasoning_tokens=%s",
+            reason, completion_tokens, reasoning_tokens,
+        )
+        if not content or not str(content).strip():
+            if reason == "length":
+                raise CapabilityUnavailableError(
+                    "The AI engine returned an empty summary because the output token limit "
+                    "was reached before visible text was produced. Increase the maximum output "
+                    "tokens or reduce reasoning effort; the request was not replayed. "
+                    f"completion_tokens={completion_tokens}, reasoning_tokens={reasoning_tokens}"
+                )
+            if reason == "content_filter" or choice.get("message", {}).get("refusal"):
+                raise CapabilityUnavailableError(
+                    "The AI engine declined to produce a summary; the request was not replayed"
+                )
+            raise CapabilityUnavailableError(
+                "The AI engine returned an empty summary "
+                f"(finish_reason={reason}, completion_tokens={completion_tokens}, "
+                f"reasoning_tokens={reasoning_tokens}); the request was not replayed"
+            )
         return (
             str(content).strip(),
             _optional_int(usage.get("prompt_tokens")),
-            _optional_int(usage.get("completion_tokens")),
+            completion_tokens,
         )
 
     @staticmethod
@@ -1197,6 +1225,16 @@ class LlamaCppSummaryEngine:
             "drop_params": True,
             "timeout": float(config.get("request_timeout_seconds", 300)),
         }
+        model_id = str(arguments["model"])
+        if model_id == "openai/gpt-6-luna" or model_id.startswith("openai/gpt-6-luna-"):
+            # Luna defaults to medium reasoning, which shares the configured
+            # completion budget with visible output. Keep the meeting workload
+            # focused on text generation unless a caller explicitly opts in.
+            arguments["reasoning_effort"] = config.get("reasoning_effort") or "none"
+            arguments.pop("temperature", None)
+            arguments.pop("top_p", None)
+            if on_token:
+                arguments["stream_options"] = {"include_usage": True}
         if base_url:
             arguments["api_base"] = base_url
         if str(config.get("model", "")).startswith(("ollama/", "ollama_chat/")):
@@ -1222,6 +1260,7 @@ class LlamaCppSummaryEngine:
                 if not on_token or not unsupported or is_cancelled():
                     raise
                 arguments.pop("stream", None)
+                arguments.pop("stream_options", None)
                 response = litellm_completion(litellm, arguments)
             if hasattr(response, "model_dump"):
                 response = response.model_dump()
@@ -1230,6 +1269,7 @@ class LlamaCppSummaryEngine:
                 return response
             parts: list[str] = []
             usage: dict[str, Any] = {}
+            finish_reason: str | None = None
             try:
                 for chunk in response:
                     if is_cancelled():
@@ -1237,6 +1277,8 @@ class LlamaCppSummaryEngine:
                     data = chunk.model_dump() if hasattr(chunk, "model_dump") else chunk
                     usage = data.get("usage") or usage
                     choices = data.get("choices") or []
+                    if choices and choices[0].get("finish_reason"):
+                        finish_reason = choices[0]["finish_reason"]
                     text = (choices[0].get("delta") or {}).get("content") if choices else None
                     if isinstance(text, str) and text:
                         parts.append(text)
@@ -1247,7 +1289,11 @@ class LlamaCppSummaryEngine:
                 if close:
                     close()
             self._log_cache_usage(usage)
-            return {"choices": [{"message": {"content": "".join(parts)}}], "usage": usage}
+            return {
+                "choices": [{"message": {"content": "".join(parts)},
+                             "finish_reason": finish_reason}],
+                "usage": usage,
+            }
         except JobCancelledError:
             raise
         except Exception as error:
