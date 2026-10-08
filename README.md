@@ -68,6 +68,11 @@ timestamps, exports and summaries; it does not merge speaker cards or train a
 new combined voiceprint. Re-running diarization rebuilds speakers, so review
 manual assignments again afterward. No database migration is required.
 
+Speaker identification rebuilds also poll their job every five seconds, so an
+interrupted event stream does not leave the dialog on an old Starting snapshot.
+Queued and zero-progress running jobs show indeterminate progress until the
+engine reports a measurable stage. This does not retry or duplicate inference.
+
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)
 for Windows loopback, Linux monitors, and macOS virtual inputs.

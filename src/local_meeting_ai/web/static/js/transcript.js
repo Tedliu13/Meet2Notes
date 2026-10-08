@@ -96,6 +96,8 @@
   let activeSpeakerSummaryId = null;
   let speakerSummaryDismissed = false;
   let activeSpeakerRebuildJobId = null;
+  let speakerRebuildPollTimer = null;
+  let speakerRebuildRefreshPromise = null;
   let speakerRebuildDismissed = false;
   let pendingPostprocessKind = null;
   let pendingRememberSpeakerId = null;
@@ -1450,15 +1452,20 @@
     document.querySelector("#speaker-rebuild-options").hidden = true;
     document.querySelector("#speaker-rebuild-progress-view").hidden = false;
     const bar = document.querySelector("#speaker-rebuild-progress");
-    if (isIndeterminateJob(job)) bar.removeAttribute("value");
+    const unknown = isIndeterminateJob(job) || job.status === "queued" ||
+      (job.status === "running" && progress === 0);
+    if (unknown) bar.removeAttribute("value");
     else bar.value = progress * 100;
-    document.querySelector("#speaker-rebuild-percent").textContent = isIndeterminateJob(job)
+    document.querySelector("#speaker-rebuild-percent").textContent = unknown
       ? t("audio.working") : `${Math.round(progress * 100)}%`;
     document.querySelector("#speaker-rebuild-status").textContent = job.status === "failed"
       ? (job.error_text || "Speaker identification failed")
       : job.status === "cancelled"
         ? "Speaker identification was cancelled"
-        : (job.message || (job.status === "completed" ? "Speaker identification complete" : "Identifying speakers..."));
+        : job.status === "queued" ? t("speaker.rebuild_queued")
+          : job.status === "running" && (!job.message || job.message === "Starting")
+            ? t("speaker.rebuild_starting")
+            : (job.message || (job.status === "completed" ? "Speaker identification complete" : "Identifying speakers..."));
     document.querySelector("#speaker-rebuild-background").hidden = terminal;
     document.querySelector("#speaker-rebuild-done").hidden = !terminal;
     document.querySelector("#speaker-rebuild-description").textContent = terminal
@@ -1469,6 +1476,41 @@
     if (!speakerRebuildDismissed && !speakerRebuildDialog.open) {
       speakerRebuildDialog.showModal();
     }
+  }
+
+  async function updateSpeakerRebuildJob(job) {
+    if (job.uuid !== activeSpeakerRebuildJobId) return;
+    renderSpeakerRebuildJob(job);
+    if (!["completed", "failed", "cancelled"].includes(job.status)) return;
+    if (speakerRebuildRefreshPromise) return speakerRebuildRefreshPromise;
+    speakerRebuildRefreshPromise = (async () => {
+      if (job.status === "completed" && activeTranscriptionId) {
+        await selectTranscription(activeTranscriptionId);
+        toast("Speaker identification rebuilt.", "success");
+      } else {
+        renderSpeakerPanel();
+      }
+      if (activeSpeakerRebuildJobId === job.uuid) activeSpeakerRebuildJobId = null;
+      clearTimeout(speakerRebuildPollTimer);
+      document.querySelector("#speaker-rebuild-identification").disabled = false;
+    })();
+    try { await speakerRebuildRefreshPromise; }
+    finally { speakerRebuildRefreshPromise = null; }
+  }
+
+  function pollSpeakerRebuild(jobId) {
+    clearTimeout(speakerRebuildPollTimer);
+    speakerRebuildPollTimer = setTimeout(async () => {
+      if (activeSpeakerRebuildJobId !== jobId) return;
+      try {
+        const job = await api(`/api/jobs/${jobId}`);
+        await updateSpeakerRebuildJob(job);
+      } catch (error) {
+        console.warn("Could not refresh speaker identification; retrying", error);
+      } finally {
+        if (activeSpeakerRebuildJobId === jobId) pollSpeakerRebuild(jobId);
+      }
+    }, 5000);
   }
 
   async function startSpeakerRebuild() {
@@ -1488,6 +1530,7 @@
       activeSpeakerRebuildJobId = job.uuid;
       document.querySelector("#speaker-rebuild-identification").disabled = true;
       renderSpeakerRebuildJob(job);
+      pollSpeakerRebuild(job.uuid);
     } catch (error) {
       toast(error.message, "error");
     } finally {
@@ -3141,16 +3184,7 @@
     if (activeSpeakerRebuildJobId) {
       const rebuildJob = jobs.find((job) => job.uuid === activeSpeakerRebuildJobId);
       if (rebuildJob) {
-        renderSpeakerRebuildJob(rebuildJob);
-        if (["completed", "failed", "cancelled"].includes(rebuildJob.status)) {
-          activeSpeakerRebuildJobId = null;
-          if (rebuildJob.status === "completed" && activeTranscriptionId) {
-            await selectTranscription(activeTranscriptionId);
-            toast("Speaker identification rebuilt.", "success");
-          } else {
-            renderSpeakerPanel();
-          }
-        }
+        await updateSpeakerRebuildJob(rebuildJob);
       }
     }
     if (activeSpeakerSummaryJobId) {

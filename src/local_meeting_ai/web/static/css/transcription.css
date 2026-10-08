@@ -321,6 +321,10 @@
   flex-direction: column;
 }
 
+#speaker-rebuild-dialog [hidden] {
+  display: none !important;
+}
+
 .meeting-tab-panel[hidden] {
   display: none;
 }
