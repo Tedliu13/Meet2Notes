@@ -442,6 +442,7 @@
           </div>
         </div>
       </div>
+      {% set profile_picker_id = 'known-speaker-picker' %}{% include "_known_speakers.html" %}
       <label class="postprocess-option-card" id="postprocess-final-pass-option" for="postprocess-final-pass">
         <input id="postprocess-final-pass" type="checkbox" checked>
         <span><strong>Final transcription pass</strong><small id="postprocess-final-pass-help">Reprocess the complete recording for the most accurate transcript.</small></span>

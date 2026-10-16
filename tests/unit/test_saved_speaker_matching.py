@@ -63,3 +63,39 @@ async def test_matching_cancellation_is_not_hidden():
             Path("normalized.wav"), [DiarizationSegment(0, 5000, 0)], {}, profiles, matcher,
             job_uuid="job", transcription_id=9, progress=Mock(), is_cancelled=lambda: True,
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ids,expected", [([2], [2]), ([], [1, 2]), (None, [1, 2])])
+async def test_meeting_roster_limits_candidates_without_changing_acceptance_threshold(
+    ids, expected,
+):
+    profiles = Mock()
+    chosen = SimpleNamespace(id=2, sample_path="chosen.wav")
+    profiles.list.return_value = [SimpleNamespace(id=1, sample_path="other.wav"), chosen]
+    matcher = SimpleNamespace(match=AsyncMock(return_value={}))
+    result = await match_saved_speakers(
+        Path("normalized.wav"), [DiarizationSegment(0, 5000, 0)],
+        {"profile_match_threshold": 0.72}, profiles, matcher,
+        job_uuid="job", transcription_id=9, progress=Mock(), is_cancelled=lambda: False,
+        profile_ids=ids,
+    )
+    assert result == {}
+    assert [profile.id for profile in matcher.match.call_args.args[2]] == expected
+    assert matcher.match.call_args.args[3]["profile_match_threshold"] == 0.72
+
+
+@pytest.mark.asyncio
+async def test_deleted_selected_profiles_never_expand_to_other_saved_people(caplog):
+    profiles = Mock()
+    profiles.list.return_value = [SimpleNamespace(id=1, sample_path="other.wav")]
+    matcher = SimpleNamespace(match=AsyncMock())
+    with caplog.at_level("INFO"):
+        result = await match_saved_speakers(
+            Path("normalized.wav"), [DiarizationSegment(0, 5000, 0)], {}, profiles, matcher,
+            job_uuid="job", transcription_id=9, progress=Mock(), is_cancelled=lambda: False,
+            profile_ids=[99],
+        )
+    assert result == {}
+    matcher.match.assert_not_called()
+    assert "selected_profiles_unavailable" in caplog.text

@@ -1,4 +1,12 @@
 {
+  "known_speakers.title": "Hablantes conocidos",
+  "known_speakers.help": "Selecciona voces guardadas previstas en esta reunión. Solo se compararán las seleccionadas; las voces inciertas seguirán sin identificar. Deja vacío para comparar todas las voces guardadas.",
+  "known_speakers.loading": "Cargando voces guardadas…",
+  "known_speakers.optional": "Opcional. La lista se guarda con la reunión y se reutiliza al identificar hablantes de nuevo. No determina el número total de hablantes.",
+  "known_speakers.empty": "No hay muestras de voz guardadas. Guarda primero una voz de otra reunión.",
+  "known_speakers.error": "No se pudieron cargar las voces. Recarga para elegir hablantes o continúa sin selección.",
+  "known_speakers.disabled": "El reconocimiento de voces guardadas está desactivado. Pide a un administrador que lo active antes de seleccionar hablantes.",
+  "known_speakers.retry": "Recargar voces guardadas",
   "speaker.processing": "Identificando hablantes…",
   "speaker.previous_results": "Resultados anteriores (este intento no se completó)",
   "speaker.refreshing": "Identificación terminada; cargando los resultados…",
@@ -109,6 +117,9 @@
   "mcp.status_enabled": "Activado · los clientes de escritorio pueden usar las herramientas de solo lectura de Meet2Notes mientras la aplicación esté ejecutándose.",
   "mcp.title": "Clientes MCP de escritorio",
   "literal": {
+    "Known speakers": "Hablantes conocidos",
+    "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.": "Selecciona voces guardadas previstas en esta reunión. Solo se compararán las seleccionadas; las voces inciertas seguirán sin identificar. Deja vacío para comparar todas las voces guardadas.",
+    "Reload saved voices": "Recargar voces guardadas",
     "修改建立者": "Cambiar creador",
     "修改共同管理者": "Cambiar coadministradores",
     "建立者": "Creador",

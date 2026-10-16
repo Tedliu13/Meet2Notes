@@ -444,8 +444,9 @@ def test_composite_asr_persists_integrated_speaker_turns(tmp_path: Path) -> None
 
 @pytest.mark.parametrize("integrated", [True, False])
 @pytest.mark.parametrize("enabled", [True, False])
+@pytest.mark.parametrize("selected", [True, False])
 def test_existing_voice_is_loaded_and_applied_to_a_later_meeting(
-    tmp_path: Path, monkeypatch: Any, integrated: bool, enabled: bool,
+    tmp_path: Path, monkeypatch: Any, integrated: bool, enabled: bool, selected: bool,
 ) -> None:
     from local_meeting_ai.adapters.diarization.profile_matching import (
         SherpaOnnxSpeakerProfileMatcher,
@@ -464,9 +465,16 @@ def test_existing_voice_is_loaded_and_applied_to_a_later_meeting(
         sample = container.storage.speaker_profile_path(1)
         sample.parent.mkdir(parents=True, exist_ok=True)
         sample.write_bytes(_wav_bytes())
+        if selected:
+            container.speaker_profiles.create(name="Not invited", sample_path=str(sample))
         profile = container.speaker_profiles.create(name="已儲存人物", sample_path=str(sample))
         client.put("/api/settings", json={"diarization": {"recognize_saved_speakers": enabled}})
-        meeting = client.post("/api/meetings", json={"title": "Later meeting"}).json()
+        ids = [profile.id] if selected else []
+        meeting = client.post("/api/meetings", json={
+            "title": "Later meeting", "known_speaker_profile_ids": ids,
+        }).json()
+        stored_meeting = client.get(f"/api/meetings/{meeting['id']}").json()
+        assert stored_meeting["known_speaker_profile_ids"] == ids
         client.post(f"/api/meetings/{meeting['id']}/import",
                     files={"file": ("later.wav", _wav_bytes(), "audio/wav")})
         started = client.post(
@@ -500,6 +508,7 @@ def test_existing_voice_is_loaded_and_applied_to_a_later_meeting(
             normalized = container.recordings.latest_for_role(meeting["id"], "normalized")
             assert audio_path == Path(normalized.local_path)
             assert forwarded_profiles[0].id == profile.id
+            assert len(forwarded_profiles) == 1
             assert forwarded_profiles[0].sample_path == str(sample)
             assert config["_voice_match_transcription_id"] == transcription_id
             assert linked[0]["display_name"] == profile.name

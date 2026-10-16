@@ -22,6 +22,7 @@ from local_meeting_ai.domain.protocols import (
 )
 from local_meeting_ai.infrastructure.database.repositories import (
     JobRepository,
+    MeetingRepository,
     RecordingRepository,
     SettingsRepository,
     SpeakerProfileRepository,
@@ -138,6 +139,7 @@ class DiarizationService:
         self.engine = engine
         self.recordings = recordings
         self.transcriptions = transcriptions
+        self.meetings = MeetingRepository(transcriptions.database)
         self.jobs = jobs
         self.preferences = preferences
         self.queue = queue
@@ -287,9 +289,13 @@ class DiarizationService:
             cast(ProgressReporter, progress),
             is_cancelled,
         )
+        meeting = await asyncio.to_thread(self.meetings.get, transcription.meeting_id)
+        if meeting is None:
+            raise NotFoundError("The meeting no longer exists")
         recognized = await match_saved_speakers(
             Path(recording.local_path), turns, config, self.speaker_profiles, self.profile_matcher,
             job_uuid=job.uuid, transcription_id=transcription.id,
+            profile_ids=meeting.known_speaker_profile_ids,
             progress=lambda value, message: self.jobs.update_progress(
                 job.uuid, 0.91 + 0.025 * value, message,
             ),

@@ -14,6 +14,9 @@ class MeetingCreate(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
     source_type: SourceType = SourceType.MANUAL
     language: str | None = Field(default=None, max_length=20)
+    known_speaker_profile_ids: list[Annotated[int, Field(strict=True, gt=0)]] = Field(
+        default_factory=list, max_length=100
+    )
 
 
 class MeetingUpdate(BaseModel):
@@ -47,6 +50,7 @@ class MeetingResponse(BaseModel):
     can_manage: bool = True
     can_share: bool = True
     can_transfer: bool = False
+    known_speaker_profile_ids: list[int] = Field(default_factory=list)
 
 
 class RecordingResponse(BaseModel):

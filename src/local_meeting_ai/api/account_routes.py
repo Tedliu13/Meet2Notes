@@ -184,6 +184,11 @@ def workspace_preferences(
         )
         if key in preferences
     } | {
+        "diarization": {
+            "recognize_saved_speakers": preferences.get("diarization", {}).get(
+                "recognize_saved_speakers", True
+            )
+        },
         "summary_engine": {
             key: summary[key]
             for key in ("provider", "model", "model_file", "context_length", "max_output_tokens")

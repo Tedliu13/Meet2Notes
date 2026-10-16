@@ -623,6 +623,7 @@
     document.querySelectorAll("[data-open-import]").forEach((button) => {
       button.addEventListener("click", () => {
         resetImport();
+        window.Meet2Notes.knownSpeakers?.open({ id: "import-known-speaker-picker", show: !existingMeetingId });
         dialog.showModal();
       });
     });
@@ -696,6 +697,7 @@
             body: JSON.stringify({
               title: requestedTitle || fallbackTitle || "Imported meeting",
               source_type: "imported",
+              known_speaker_profile_ids: window.Meet2Notes.knownSpeakers?.selectedIds("import-known-speaker-picker") || [],
             }),
           });
           meetingId = meeting.id;

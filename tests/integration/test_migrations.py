@@ -11,7 +11,7 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
     database = Database(tmp_path / "migration.db")
     runner = MigrationRunner(database)
 
-    assert runner.apply() == list(range(1, 15))
+    assert runner.apply() == list(range(1, 16))
     assert runner.apply() == []
 
     with database.read() as connection:
@@ -79,8 +79,11 @@ def test_library_upgrade_preserves_existing_meetings_and_search(tmp_path: Path) 
         connection.execute("""INSERT INTO transcript_segments
             (transcription_id, segment_index, start_ms, end_ms, text)
             VALUES (1, 0, 0, 1000, 'Preserved launch decision')""")
-    assert runner.apply() == [13, 14]
+    assert runner.apply() == [13, 14, 15]
     assert runner.apply() == []
+    from local_meeting_ai.infrastructure.database.repositories import MeetingRepository
+
+    assert MeetingRepository(database).get(1).known_speaker_profile_ids == []
     from local_meeting_ai.infrastructure.database.library import LibraryRepository
 
     library = LibraryRepository(database)

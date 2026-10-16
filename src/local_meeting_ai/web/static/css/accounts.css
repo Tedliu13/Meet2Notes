@@ -25,3 +25,8 @@ body[data-can-manage="false"] .rename-hint { display: none !important; }
 body[data-can-manage="false"] #transcription-title-display { pointer-events: none; }
 body[data-is-admin="false"] #assistant-action-manage { display: none !important; }
 [hidden] { display: none !important; }
+.known-speaker-picker { margin: 16px 0; padding: 16px; border: 1px solid var(--border, #dbe1ea); border-radius: 12px; min-width: 0; }
+.known-speaker-picker p { font-size: 12px; line-height: 1.6; }
+.known-speaker-list { display: flex; flex-wrap: wrap; gap: 12px; max-height: 180px; overflow: auto; }
+.known-speaker-list label { display: flex; align-items: center; gap: 8px; padding: 8px; }
+.known-speaker-list input { width: auto; }

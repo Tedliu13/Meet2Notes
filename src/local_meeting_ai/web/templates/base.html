@@ -125,6 +125,7 @@
         </div>
         <div class="progress-track"><span id="upload-bar"></span></div>
       </div>
+      {% set profile_picker_id = 'import-known-speaker-picker' %}{% include "_known_speakers.html" %}
       <div class="modal-actions">
         <button type="button" class="button secondary" data-close-dialog data-i18n="common.cancel">Cancel</button>
         <button type="submit" class="button primary" id="import-submit">
@@ -153,6 +154,7 @@
 
   <div class="toast-region" id="toast-region" aria-live="polite"></div>
   <script src="/static/js/app.js?v={{ asset_version }}" defer></script>
+  <script src="/static/js/known-speakers.js?v={{ asset_version }}" defer></script>
   <script src="/static/js/markdown.js?v={{ asset_version }}" defer></script>
   <script src="/static/js/answer-stream.js?v={{ asset_version }}" defer></script>
   {% block scripts %}{% endblock %}

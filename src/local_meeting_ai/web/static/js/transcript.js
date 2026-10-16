@@ -1757,6 +1757,9 @@
 
   function openPostprocessOptions(kind) {
     pendingPostprocessKind = kind;
+    Meet2Notes.knownSpeakers?.open({
+      show: kind === "import", enabled: preferences.diarization?.recognize_saved_speakers !== false,
+    });
       workflowVisible = false;
       workflowCompleted = false;
       const isImport = kind === "import";
@@ -2033,6 +2036,7 @@
       body: JSON.stringify({
         title: draftTitle,
         source_type: "imported",
+        known_speaker_profile_ids: Meet2Notes.knownSpeakers?.selectedIds() || [],
       }),
     });
     await uploadFile(meeting.id, file);

@@ -1,4 +1,12 @@
 {
+  "known_speakers.title": "已知講者名單",
+  "known_speakers.help": "勾選預期參與的已儲存聲紋人物。辨識時僅比對勾選名單，無法確認的聲音保留為未識別講者；不勾選則比對全部已儲存聲紋。",
+  "known_speakers.loading": "正在載入已儲存聲紋…",
+  "known_speakers.optional": "選填。名單會隨會議保存，重新辨識時沿用；不會限制會議的總講者人數。",
+  "known_speakers.empty": "目前沒有已儲存的聲紋，請先從既有會議儲存人物聲紋。",
+  "known_speakers.error": "無法載入聲紋名單。可重新載入後勾選，或不勾選直接繼續。",
+  "known_speakers.disabled": "設定中的「辨識已儲存講者」尚未開啟，請管理者啟用後再勾選已知講者。",
+  "known_speakers.retry": "重新載入聲紋名單",
   "speaker.processing": "講者辨識中…",
   "speaker.previous_results": "上次辨識結果（此次未完成）",
   "speaker.refreshing": "辨識已完成，正在更新結果…",
@@ -109,6 +117,9 @@
   "mcp.status_enabled": "已啟用 · 應用程式運作時，桌面用戶端可使用唯讀 Meet2Notes 工具。",
   "mcp.title": "MCP 桌面用戶端",
   "literal": {
+    "Known speakers": "已知講者名單",
+    "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.": "勾選預期參與的已儲存聲紋人物。辨識時僅比對勾選名單，無法確認的聲音保留為未識別講者；不勾選則比對全部已儲存聲紋。",
+    "Reload saved voices": "重新載入聲紋名單",
     "修改建立者": "修改建立者",
     "修改共同管理者": "修改共同管理者",
     "建立者": "建立者",

@@ -24,6 +24,7 @@ class Meeting:
     recording_count: int = 0
     audio_deleted_at: str | None = None
     audio_deleted_bytes: int | None = None
+    known_speaker_profile_ids: list[int] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

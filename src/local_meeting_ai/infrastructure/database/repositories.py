@@ -23,6 +23,7 @@ from local_meeting_ai.domain.entities import (
     TranscriptSegment,
 )
 from local_meeting_ai.domain.enums import JobStatus, JobType, MeetingStatus, SourceType
+from local_meeting_ai.domain.errors import ValidationError
 from local_meeting_ai.infrastructure.database.connection import Database
 
 
@@ -64,6 +65,10 @@ def _meeting_from_row(row: Any) -> Meeting:
         audio_deleted_at=row["audio_deleted_at"] if "audio_deleted_at" in keys else None,
         audio_deleted_bytes=(
             row["audio_deleted_bytes"] if "audio_deleted_bytes" in keys else None
+        ),
+        known_speaker_profile_ids=(
+            json.loads(row["known_speaker_profile_ids_json"])
+            if "known_speaker_profile_ids_json" in keys else []
         ),
     )
 
@@ -213,16 +218,24 @@ class MeetingRepository:
         source_type: SourceType,
         language: str | None,
         creator_id: int | None = None,
+        known_speaker_profile_ids: list[int] | None = None,
     ) -> Meeting:
         meeting_uuid = str(uuid4())
         now = utc_now()
         with self.database.transaction() as connection:
+            profile_ids = sorted(set(known_speaker_profile_ids or []))
+            for profile_id in profile_ids:
+                row = connection.execute(
+                    "SELECT sample_path FROM speaker_profiles WHERE id=?", (profile_id,)
+                ).fetchone()
+                if not row or not row["sample_path"]:
+                    raise ValidationError("Known speakers must have a saved voice sample")
             cursor = connection.execute(
                 """
                 INSERT INTO meetings(
                     uuid, title, description, status, source_type, language,
-                    created_at, updated_at, creator_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at, updated_at, creator_id, known_speaker_profile_ids_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     meeting_uuid,
@@ -234,6 +247,7 @@ class MeetingRepository:
                     now,
                     now,
                     creator_id,
+                    json.dumps(profile_ids),
                 ),
             )
             meeting_id = cursor.lastrowid

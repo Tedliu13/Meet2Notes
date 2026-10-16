@@ -28,14 +28,19 @@ async def match_saved_speakers(
     transcription_id: int,
     progress: ProgressReporter,
     is_cancelled: CancellationCheck,
+    profile_ids: list[int] | None = None,
 ) -> dict[int, Any]:
     enabled = bool(config.get("recognize_saved_speakers", True))
     saved = await asyncio.to_thread(profiles.list) if profiles is not None and enabled else []
+    selected = set(profile_ids or [])
+    if selected:
+        saved = [profile for profile in saved if profile.id in selected]
     usable = [profile for profile in saved if profile.sample_path]
     reason = (
         "recognition_disabled" if not enabled else
         "no_speaker_turns" if not turns else
         "profile_repository_unavailable" if profiles is None else
+        "selected_profiles_unavailable" if selected and not saved else
         "no_saved_profiles" if not saved else
         "no_saved_sample_paths" if not usable else
         "matcher_unavailable" if matcher is None else None
@@ -49,9 +54,10 @@ async def match_saved_speakers(
     assert matcher is not None
     logger.info(
         "Saved voice matching started: job=%s transcription=%s saved=%d samples=%d "
-        "speakers=%d threshold=%.3f",
+        "speakers=%d threshold=%.3f candidate_scope=%s selected=%d",
         job_uuid, transcription_id, len(saved), len(usable), len({t.speaker for t in turns}),
         float(config.get("profile_match_threshold", 0.72)),
+        "meeting" if selected else "all", len(selected),
     )
     matched = await matcher.match(
         audio_path, turns, usable,

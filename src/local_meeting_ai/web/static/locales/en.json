@@ -1,4 +1,12 @@
 {
+  "known_speakers.title": "Known speakers",
+  "known_speakers.help": "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.",
+  "known_speakers.loading": "Loading saved voices…",
+  "known_speakers.optional": "Optional. This list is saved with the meeting and reused when identifying speakers again. It does not set the total speaker count.",
+  "known_speakers.empty": "No saved voice samples yet. Save a voice from a previous meeting first.",
+  "known_speakers.error": "Saved voices could not be loaded. Reload to choose speakers, or continue without a selection.",
+  "known_speakers.disabled": "Saved-speaker recognition is disabled in Settings. Ask an administrator to enable it before selecting known speakers.",
+  "known_speakers.retry": "Reload saved voices",
   "speaker.processing": "Identifying speakers…",
   "speaker.previous_results": "Previous results (this attempt did not complete)",
   "speaker.refreshing": "Identification finished; loading updated results…",
@@ -109,6 +117,9 @@
   "mcp.status_enabled": "Enabled · desktop clients can use the read-only Meet2Notes tools while this app is running.",
   "mcp.title": "MCP desktop clients",
   "literal": {
+    "Known speakers": "Known speakers",
+    "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.": "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.",
+    "Reload saved voices": "Reload saved voices",
     "修改建立者": "Change creator",
     "修改共同管理者": "Change co-managers",
     "建立者": "Creator",

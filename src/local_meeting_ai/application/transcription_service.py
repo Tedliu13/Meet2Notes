@@ -465,10 +465,14 @@ class TranscriptionService:
                 diarization = configured_values(
                     self.preferences, "diarization", DIARIZATION_DEFAULTS,
                 )
+                meeting = await asyncio.to_thread(self.meetings.get, completed.meeting_id)
+                if meeting is None:
+                    raise NotFoundError("The meeting no longer exists")
                 recognized = await match_saved_speakers(
                     Path(normalized.local_path), result.speaker_turns, diarization,
                     self.speaker_profiles, self.profile_matcher,
                     job_uuid=job.uuid, transcription_id=transcription_id,
+                    profile_ids=meeting.known_speaker_profile_ids,
                     progress=lambda value, message: self.jobs.update_progress(
                         job.uuid, 0.965 + 0.02 * value, message,
                     ),

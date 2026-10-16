@@ -57,6 +57,21 @@ entry for the new creator. The former creator loses edit/share permissions unles
 they remain an administrator or explicitly assigned co-manager. This uses existing
 account tables; no new migration, model download or environment variable is needed.
 
+New meetings can also specify **Known speakers** in the final-processing dialog
+after choosing a media file (and in the generic new-recording import dialog).
+Select existing saved voice profiles, rather than user accounts. The selected
+profile IDs are saved on the meeting and reused for integrated ASR speaker
+matching, separate diarization and later speaker rebuilds. A nonempty selection
+limits voice matching to those candidates; an empty selection retains matching
+against all saved profiles. Clustering still runs normally, the selected count
+does not set the total speaker count, and weak/ambiguous voices remain unidentified.
+The existing recognition toggle and score/margin/voting thresholds still apply.
+If recognition is disabled, the picker explains that an administrator must enable it.
+Deleted selected profiles are skipped without expanding to other saved voices.
+Migration 015 adds only meeting metadata; existing meetings default to the original
+all-profiles behavior. Back up before upgrading; no model or environment changes
+are needed. A roster grants no account or meeting management permissions.
+
 Only administrators can access Settings, credentials and global configuration.
 **Settings → User management** supports name/password edits, activation,
 deactivation and deletion. Passwords require 12–256 characters; leave a password

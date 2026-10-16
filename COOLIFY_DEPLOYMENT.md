@@ -30,6 +30,14 @@
 
 安全設計參考：[OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)、[OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)。
 
+### 新增會議的已知講者名單
+
+新增會議選完音訊／影片後，在「選擇處理流程」的「已知講者名單」勾選既有聲紋人物；一般新增匯入視窗也提供相同選項。這些是已儲存聲紋的人物，不是網站帳號，不會授予共同管理權限。只有有聲音樣本的資料會列出。沒有聲紋時顯示說明；載入失敗可重試或不勾選繼續。
+
+非空名單會成為該會議的聲紋候選範圍，首次獨立講者辨識、整合式 ASR 分群後比對與後續重新辨識都沿用。空名單維持比對全部已儲存聲紋。勾選人數不會設定總講者人數，不會強制將所有聲音分配給名單人物，也不降低既有相似度／差距／投票門檻；不符合條件者仍未識別。全域「辨識已儲存講者」必須開啟；關閉時 UI 不提供勾選，API 儲存的名單也不會繞過開關。已選人物後來被刪除，會略過該聲紋，不擴大比對到其他人物。
+
+升級執行 migration `015_known_speakers.sql`，僅在 meetings 新增 `known_speaker_profile_ids_json`，既有會議預設 `[]`；原始 IDs 即使聲紋刪除仍保留，避免最後一筆候選消失後變成全庫比對。無新環境變數、模型或 runtime 依賴，不需重建 RAG index。管理者部署前依既有 SQLite backup API 流程備份 `/data` 與獨立加密密鑰；還原需使用對應版本的一致性備份。storage、health、模型 volumes 與資源限制皆不變。
+
 參考：[Coolify Compose](https://coolify.io/docs/applications/builds/docker-compose)、[持久化儲存](https://coolify.io/docs/applications/configuration/persistent-storage)。
 
 ## 2. 環境變數
