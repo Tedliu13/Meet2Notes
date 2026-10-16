@@ -275,3 +275,20 @@ def test_high_centroid_similarity_still_requires_fragment_agreement():
     assert diagnostic["reason"] == "fragment_disagreement"
     assert diagnostic["votes"] == 1
     assert diagnostic["required_votes"] == 2
+
+
+def test_hosted_embedding_extractor_respects_cpu_thread_limit(tmp_path, monkeypatch):
+    matcher = profile_matching.SherpaOnnxSpeakerProfileMatcher(tmp_path, cpu_thread_limit=2)
+    original_import = profile_matching.importlib.import_module
+    configurations = []
+    sherpa = SimpleNamespace(
+        SpeakerEmbeddingExtractorConfig=lambda **kwargs: configurations.append(kwargs) or kwargs,
+        SpeakerEmbeddingExtractor=lambda config: config,
+    )
+    monkeypatch.setattr(profile_matching.importlib, "import_module",
+                        lambda name: sherpa if name == "sherpa_onnx" else original_import(name))
+    try:
+        matcher._create_extractor({"num_threads": 32})
+        assert configurations[0]["num_threads"] == 2
+    finally:
+        matcher.shutdown()

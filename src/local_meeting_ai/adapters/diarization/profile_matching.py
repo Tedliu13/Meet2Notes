@@ -47,7 +47,7 @@ class SherpaOnnxSpeakerProfileMatcher:
 
     name = "sherpa-onnx-speaker-profiles"
 
-    def __init__(self, models_dir: Path) -> None:
+    def __init__(self, models_dir: Path, *, cpu_thread_limit: int | None = None) -> None:
         # Keep using the original Sherpa model location so existing installs do
         # not redownload the 3D-Speaker embedding checkpoint.
         self.models_dir = models_dir / "diarization" / "sherpa-onnx"
@@ -62,6 +62,7 @@ class SherpaOnnxSpeakerProfileMatcher:
         self._last_error: str | None = None
         self._shutdown = False
         self._last_match_stats: dict[str, Any] = {}
+        self._cpu_thread_limit = cpu_thread_limit
 
     def capability(self) -> dict[str, Any]:
         dependency = importlib.util.find_spec("sherpa_onnx") is not None
@@ -76,6 +77,7 @@ class SherpaOnnxSpeakerProfileMatcher:
             "available": dependency,
             "installed": self._model_path({}).is_file(),
             "models_directory": str(self.models_dir),
+            "cpu_thread_limit": self._cpu_thread_limit,
             "worker": {
                 "dedicated": True,
                 "thread_prefix": "speaker-profile-matcher",
@@ -388,8 +390,11 @@ class SherpaOnnxSpeakerProfileMatcher:
             provider = "cpu"
         if provider == "cuda":
             _configure_cuda_dlls()
+        threads = max(1, int(config.get("num_threads") or 2))
+        if self._cpu_thread_limit is not None:
+            threads = min(threads, self._cpu_thread_limit)
         return sherpa.SpeakerEmbeddingExtractor(sherpa.SpeakerEmbeddingExtractorConfig(
-            model=str(self._model_path(config)), num_threads=int(config.get("num_threads", 2)),
+            model=str(self._model_path(config)), num_threads=threads,
             debug=bool(config.get("debug", False)), provider=provider,
         ))
 

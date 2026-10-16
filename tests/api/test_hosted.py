@@ -44,6 +44,17 @@ def test_authentication_and_host_validation(hosted_client):
     assert hosted_client.get("/api/health", headers={"Host": "evil.example"}).status_code == 400
 
 
+def test_hosted_sherpa_uses_process_isolation_and_bounded_threads(hosted_client):
+    response = hosted_client.get("/api/capabilities", auth=("owner", "test-password"))
+    assert response.status_code == 200
+    diarization = response.json()["diarization"]
+    sherpa = diarization["engines"]["sherpa-onnx"]["worker"]
+    assert sherpa["process_isolated"] is True
+    assert sherpa["process_id"] is None  # Capability checks never start native inference.
+    assert sherpa["cpu_thread_limit"] == 2
+    assert diarization["speaker_profile_matcher"]["cpu_thread_limit"] == 2
+
+
 @pytest.mark.parametrize("initialization_fails", [False, True])
 def test_litellm_initializes_before_jobs_and_failure_keeps_health_available(
     settings, monkeypatch, initialization_fails

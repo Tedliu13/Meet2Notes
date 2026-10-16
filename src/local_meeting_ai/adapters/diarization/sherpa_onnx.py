@@ -25,6 +25,7 @@ from local_meeting_ai.domain.errors import (
     JobCancelledError,
 )
 from local_meeting_ai.domain.protocols import CancellationCheck, ProgressReporter
+from local_meeting_ai.infrastructure.json_process import JsonProcessWorker
 
 logger = logging.getLogger(__name__)
 _CUDA_DLL_HANDLES: list[Any] = []
@@ -52,11 +53,14 @@ EMBEDDING_FILES = {
 
 
 class SherpaOnnxDiarizationEngine:
-    """Resident sherpa-onnx diarizer isolated from transcription and the API."""
+    """Serialized Sherpa dispatcher, with native process isolation in Hosted mode."""
 
     name = "sherpa-onnx"
 
-    def __init__(self, models_dir: Path) -> None:
+    def __init__(
+        self, models_dir: Path, *, isolate_process: bool = False,
+        logs_dir: Path | None = None, cpu_thread_limit: int | None = None,
+    ) -> None:
         self.models_dir = models_dir / "diarization" / "sherpa-onnx"
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self._executor = ThreadPoolExecutor(
@@ -71,6 +75,13 @@ class SherpaOnnxDiarizationEngine:
         self._last_error: str | None = None
         self._active_requests = 0
         self._shutdown = False
+        self._cpu_thread_limit = cpu_thread_limit
+        self._process_model_ready = False
+        self._process_worker = JsonProcessWorker(
+            [sys.executable, "-u", "-m", "local_meeting_ai.adapters.diarization.sherpa_worker",
+             "--models-dir", str(models_dir.resolve())],
+            (logs_dir or models_dir / "logs") / "sherpa-worker.log",
+        ) if isolate_process else None
 
     def capability(self) -> dict[str, Any]:
         dependency = importlib.util.find_spec("sherpa_onnx") is not None
@@ -92,7 +103,13 @@ class SherpaOnnxDiarizationEngine:
                 "dispatcher_threads": 1,
                 "state": state,
                 "active_requests": active,
-                "model_resident": self._diarizer is not None,
+                "process_isolated": self._process_worker is not None,
+                "process_id": self._process_worker.pid if self._process_worker else None,
+                "cpu_thread_limit": self._cpu_thread_limit,
+                "model_resident": (
+                    self._process_model_ready and self._process_worker.pid is not None
+                    if self._process_worker else self._diarizer is not None
+                ),
                 "last_error": error,
             },
         }
@@ -128,6 +145,9 @@ class SherpaOnnxDiarizationEngine:
         )
 
     def unload(self) -> None:
+        if self._process_worker is not None:
+            self._process_worker.stop()
+            self._process_model_ready = False
         with self._lock:
             self._diarizer = None
             self._model_key = None
@@ -142,6 +162,8 @@ class SherpaOnnxDiarizationEngine:
                 return
             self._shutdown = True
             self._state = "stopping"
+        if self._process_worker is not None:
+            self._process_worker.stop()
         self._executor.shutdown(wait=True, cancel_futures=True)
         self.unload()
         with self._state_lock:
@@ -165,7 +187,13 @@ class SherpaOnnxDiarizationEngine:
         try:
             if allow_model_download:
                 self._download_models(config)
-            self._get_diarizer(config)
+            if self._process_worker is not None:
+                self._process_worker.request(
+                    {"action": "prepare", "config": self._bounded_config(config)},
+                )
+                self._process_model_ready = True
+            else:
+                self._get_diarizer(config)
         except Exception as error:
             failure = error
             raise
@@ -184,6 +212,24 @@ class SherpaOnnxDiarizationEngine:
         try:
             if is_cancelled():
                 raise JobCancelledError("Diarization was cancelled")
+            if self._process_worker is not None:
+                response = self._process_worker.request(
+                    {"action": "diarize", "audio_path": str(audio_path.resolve()),
+                     "config": self._bounded_config(config)},
+                    progress=progress, is_cancelled=is_cancelled,
+                )
+                if is_cancelled():
+                    raise JobCancelledError("Diarization was cancelled")
+                turns = [DiarizationSegment(**turn) for turn in response["segments"]]
+                self._process_model_ready = True
+                logger.info(
+                    "Diarization completed: isolation=process pid=%s requested_speakers=%d "
+                    "detected_speakers=%d turns=%d threads=%s",
+                    response.get("pid"), int(config.get("num_speakers", -1)),
+                    len({turn.speaker for turn in turns}), len(turns),
+                    self._bounded_config(config).get("num_threads", 2),
+                )
+                return turns
             diarizer = self._get_diarizer(config)
             samples, sample_rate = _read_pcm_wave(audio_path)
             if sample_rate != int(diarizer.sample_rate):
@@ -247,6 +293,13 @@ class SherpaOnnxDiarizationEngine:
             if not bool(config.get("keep_model_loaded", True)):
                 self.unload()
             self._request_finished(failure)
+
+    def _bounded_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        result = dict(config)
+        if self._cpu_thread_limit is not None:
+            requested = max(1, int(config.get("num_threads") or self._cpu_thread_limit))
+            result["num_threads"] = min(requested, self._cpu_thread_limit)
+        return result
 
     def _get_diarizer(self, config: dict[str, Any]) -> Any:
         if importlib.util.find_spec("sherpa_onnx") is None:

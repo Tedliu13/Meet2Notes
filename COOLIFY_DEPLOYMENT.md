@@ -27,7 +27,7 @@
 | `M2N_MAX_HEAVY_JOBS` | 預設 `4`，範圍 1–4，持久化 job queue workers |
 | `M2N_CPU_LIMIT` | 預設 `8` CPU，留資源給共用 VM |
 | `M2N_MEMORY_LIMIT` | 預設 `32g`；管理者依實際模型及其他專案調整 |
-| `M2N_CPU_THREADS` | 預設 `2`；首次 Hosted 啟動設定 Faster Whisper CPU threads，亦控制 BLAS/OMP threads |
+| `M2N_CPU_THREADS` | 預設 `2`；首次 Hosted 啟動設定 Faster Whisper CPU threads，控制 BLAS/OMP threads，並限制 Hosted Sherpa 與聲紋 embedding 的 threads 上限（含已保存的引擎設定） |
 | `M2N_LOG_LEVEL` | 預設 `INFO` |
 | `M2N_LLAMACPP_VERBOSE` | Compose 預設 `true`，保留原生 llama.cpp 訊息至容器 stderr，供推論崩潰診斷；桌面預設關閉 |
 | `M2N_PYANNOTE_TOKEN` | 選用，下載 gated Pyannote 模型時需要先接受條款 |
@@ -79,6 +79,16 @@ python -c "import json,urllib.request; print(json.load(urllib.request.urlopen('h
 ```
 
 再以代表性長會議與正常並行量，確認辨識期間輕量端點、登入及會議頁可回應，並另查 `/api/health` 資料庫診斷。若仍 unhealthy，保留實際 healthcheck 的 timeout／錯誤輸出與同時段 CPU、記憶體、應用 log；勿僅繼續加大 timeout。持久化 volumes 與備份／還原流程均不變。
+
+若輕量端點與一般頁面一起卡住，不能只把健康檢查時間繼續放寬。使用者確認版本為 1.13.8，卡在分析講者；核對同版本 Sherpa `OfflineSpeakerDiarization.process` 的 Python 綁定，未見釋放 GIL 的 call guard。pybind11 預設不會自動釋放 GIL，因此「獨立執行緒」仍可能擋住同一 Python 程序的 HTTP。這是與現象高度吻合的程式碼層原因，尚未取得正式 VM stack trace／CPU 量測。[Sherpa 1.13.8 綁定](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.8/sherpa-onnx/python/csrc/offline-speaker-diarization.cc)、[pybind11 GIL 說明](https://pybind11.readthedocs.io/en/stable/advanced/misc.html#global-interpreter-lock-gil)。
+
+Hosted 現在自動啟用 Sherpa 原生模型載入及辨識的獨立常駐子程序，使用現有 image 中同一 Python 環境，無新 container、venv、host ports 或模型下載；桌面模式保留原有路徑。父程序只做序列化請求、進度與取消處理，模型留在子程序重用；同一 Sherpa 引擎仍只執行一個辨識工作，四個 queue workers 不變。取消或關閉服務會終止子程序；原生崩潰／錯誤使目前工作失敗，後續明確提交的新工作才啟動新程序，不自動重播失敗請求。模型與音訊仍讀取原有 `/models`、`/data` volumes，SQLite 只由主應用管理。
+
+`M2N_CPU_THREADS`（預設 2）亦為 Hosted Sherpa 與已儲存聲紋 embedding 的 threads 上限：即使 Settings 保存了更大的 `num_threads`，實際值仍受此上限限制。變更此 runtime variable 需重建容器設定；程式修正則需 rebuild／部署新版 image。此上限可調，但不額外保留 CPU 核心；子程序仍共用 Compose CPU/RAM 配額。一般聲紋 embedding 使用原有 matcher thread，其上游 compute 綁定有釋放 GIL，未另建匹配程序。
+
+部署後確認 `/api/capabilities` 的 `diarization.engines.sherpa-onnx.worker.process_isolated=true`、`cpu_thread_limit`，模型預載或工作開始後可見 `process_id`。能力查詢本身不啟動模型。應用 log 會列出 `Isolated model worker started` 與 `Diarization completed: isolation=process ... threads=...`；子程序的 stderr、模型訊息與 fatal Python traceback 保存到 `/data/logs/sherpa-worker.log`，啟動新子程序時若超過 5 MiB 則輪替一份。Web 程序的原生錯誤仍查 `/data/logs/native-fault.log`。不把 worker stdout 的非協定訊息當摘要／辨識結果。
+
+驗證需同時進行長錄音辨識與登入／會議頁瀏覽，並記錄 health 與容器 CPU／RAM。測試已涵蓋子程序實際持有 GIL 時父程序與 HTTP 可回應、進度、取消、異常退出及程序重用；使用合成 worker，不等於已驗證 VM 上的真實 ONNX 推論或音訊品質。CPU／磁碟耗盡、其他原生引擎或剩餘同步程式仍可能造成延遲，若持續卡住需保留當下進度、log 與資源使用量再定位。無 migration、無新必填環境變數，不需重建資料或聲紋。
 - Docker base 固定 `python:3.12.12-slim-bookworm`；Torch 安裝 CPU wheels。image 包含 FFmpeg 及各引擎執行依賴，不包含模型權重。
 - Faster Whisper 的 transcription extra 限制 `av>=11,<19`：PyAV 19 移除 `av.open(metadata_errors=...)`，會造成音訊解碼時 `open() got an unexpected keyword argument 'metadata_errors'`。遇到此錯誤須部署包含此相依限制的新 commit，重新 build image；僅重啟舊 image 無效。更新後重新執行失敗會議的處理工作，保留 data／models volumes 與原加密 key，無須重新下載模型。參考：[PyAV 19 release notes](https://github.com/PyAV-Org/PyAV/releases/tag/v19.0.0)。
 - `.dockerignore` 採 build context 允許清單，排除本機模型、資料、secrets、虛擬環境。

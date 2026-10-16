@@ -43,6 +43,12 @@ database or inference dependencies. `/api/health` retains database diagnostics.
 Speaker assignment and saved-profile reads run off the HTTP event loop. The
 probe tolerates five failures with a 15-second command timeout; persistent
 failures consequently take longer to mark unhealthy. Rebuild/redeploy to apply.
+Hosted Sherpa-ONNX now runs native model loading and diarization in one resident
+child process, keeping the model's Python GIL separate from the web server.
+Progress, cancellation and model reuse remain supported; a child failure fails
+its job without replay. Native diagnostics persist in `/data/logs/sherpa-worker.log`.
+`M2N_CPU_THREADS` caps Hosted Sherpa and saved-voice embedding threads, including
+saved engine settings. Desktop Sherpa retains its existing execution mode.
 `M2N_SECRETS_KEY` must be a generated Fernet key, including its trailing `=`,
 not a password. For restart loops caused by `Incorrect padding`, follow the key
 setup and recovery instructions in [COOLIFY_DEPLOYMENT.md](COOLIFY_DEPLOYMENT.md).

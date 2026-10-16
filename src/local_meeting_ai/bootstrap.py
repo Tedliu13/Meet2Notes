@@ -308,7 +308,9 @@ def build_container(
     )
     queue = LocalJobQueue(jobs, worker_count=settings.max_heavy_jobs)
     profile_matcher = (
-        None if diarization_engine is not None else SherpaOnnxSpeakerProfileMatcher(paths.models)
+        None if diarization_engine is not None else SherpaOnnxSpeakerProfileMatcher(
+            paths.models, cpu_thread_limit=settings.cpu_threads if settings.hosted else None,
+        )
     )
     meeting_service = MeetingService(meetings, recordings, jobs, storage)
     import_service = ImportService(meetings, recordings, jobs, storage, ffmpeg, queue)

@@ -75,9 +75,14 @@ def register_core_providers(
             "diarization",
             "Sherpa-ONNX",
             "Local ONNX speaker diarization.",
+            execution_target="isolated-local" if settings.hosted else "in-process",
             outputs=("speaker-turns",),
         ),
-        lambda context: SherpaOnnxDiarizationEngine(context.models_dir),
+        lambda context: SherpaOnnxDiarizationEngine(
+            context.models_dir, isolate_process=settings.hosted,
+            logs_dir=context.data_dir / "logs",
+            cpu_thread_limit=settings.cpu_threads if settings.hosted else None,
+        ),
     )
     registry.register_core(
         _descriptor(
