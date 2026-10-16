@@ -122,7 +122,8 @@ def mcp_status(container: ContainerDependency) -> dict[str, bool]:
 def mcp_configuration(container: ContainerDependency) -> McpConfigurationResponse:
     configurations = desktop_client_configurations(
         remote_base_url=f"https://{container.settings.allowed_hosts.split(',')[0].strip()}"
-        if container.settings.hosted else None
+        if container.settings.hosted
+        else None
     )
     claude = configurations["claude-desktop"]
     codex = configurations["codex-chatgpt"]
@@ -213,15 +214,17 @@ async def stream_prompt_meetings(
 ) -> StreamingResponse:
     from .answer_stream import answer_stream
 
-    return answer_stream(lambda progress, cancelled: container.prompt_service.ask(
-        payload.question,
-        meeting_id=payload.meeting_id,
-        use_rag=payload.use_rag,
-        history=[turn.model_dump() for turn in payload.history],
-        attachments=[attachment.model_dump() for attachment in payload.attachments],
-        progress=progress,
-        is_cancelled=cancelled,
-    ))
+    return answer_stream(
+        lambda progress, cancelled: container.prompt_service.ask(
+            payload.question,
+            meeting_id=payload.meeting_id,
+            use_rag=payload.use_rag,
+            history=[turn.model_dump() for turn in payload.history],
+            attachments=[attachment.model_dump() for attachment in payload.attachments],
+            progress=progress,
+            is_cancelled=cancelled,
+        )
+    )
 
 
 @router.post("/prompt")
@@ -435,10 +438,13 @@ def select_embedding_gguf_file(
 @router.get("/models/gguf-files")
 def installed_gguf_files(container: ContainerDependency) -> dict[str, list[str]]:
     root = container.paths.models.resolve()
-    return {"files": sorted(
-        str(path.resolve()) for path in root.rglob("*.gguf")
-        if path.is_file() and path.resolve().is_relative_to(root)
-    )}
+    return {
+        "files": sorted(
+            str(path.resolve())
+            for path in root.rglob("*.gguf")
+            if path.is_file() and path.resolve().is_relative_to(root)
+        )
+    }
 
 
 @router.post("/settings/data-directory/schedule")
@@ -603,10 +609,14 @@ def diagnostic_report(container: ContainerDependency) -> dict[str, str]:
         ]
 
     def recent_log() -> list[str]:
-        log_files = [path for path in (
-            container.paths.logs / "meet2notes.log",
-            container.paths.logs / "native-fault.log",
-        ) if path.is_file()]
+        log_files = [
+            path
+            for path in (
+                container.paths.logs / "meet2notes.log",
+                container.paths.logs / "native-fault.log",
+            )
+            if path.is_file()
+        ]
         if not log_files:
             return ["No log file found."]
         result: list[str] = []
@@ -939,9 +949,7 @@ def _sidebar_gpu_status() -> list[dict[str, Any]]:
         if len(values) != 5:
             continue
         try:
-            total_mib, used_mib, free_mib, utilization = (
-                int(value) for value in values[1:]
-            )
+            total_mib, used_mib, free_mib, utilization = (int(value) for value in values[1:])
         except ValueError:
             continue
         gpus.append(
@@ -1099,9 +1107,7 @@ async def uninstall_diarization_engine(
         DIARIZATION_DEFAULTS,
     )
     if config["engine"] == engine_id:
-        raise ValidationError(
-            "Select another speaker engine before uninstalling the active one"
-        )
+        raise ValidationError("Select another speaker engine before uninstalling the active one")
     await container.diarization_service.uninstall(engine_id)
     logger.info("Uninstalled diarization engine %s", engine_id)
     return container.diarization_service.capability()
@@ -1210,7 +1216,8 @@ async def prepare_embedding_engine(
                 "embedding_model": (
                     "BAAI/bge-m3"
                     if profile_id == "bge-m3"
-                    else model.get("repository") or model.get("model")
+                    else model.get("repository")
+                    or model.get("model")
                     or config.get("embedding_model", "")
                 ),
             }
@@ -1550,9 +1557,11 @@ async def audio_hardware_recommendation(container: ContainerDependency) -> dict[
 
     recommendation = await asyncio.to_thread(audio_recommendation)
     saved = container.preferences.get_all()
-    return {"recommendation": recommendation.as_dict(),
-            "current": saved.get("audio_setup", {"mode": "custom"}),
-            "automatic_model_memory": saved.get("automatic_model_memory", False)}
+    return {
+        "recommendation": recommendation.as_dict(),
+        "current": saved.get("audio_setup", {"mode": "custom"}),
+        "automatic_model_memory": saved.get("automatic_model_memory", False),
+    }
 
 
 @router.post("/engines/audio/automatic")
@@ -1561,8 +1570,9 @@ async def install_automatic_audio(container: ContainerDependency) -> dict[str, A
 
     if container.capture_service.status() or container.jobs.list(active_only=True, limit=1):
         raise ValidationError("Wait for active jobs to finish before changing audio profiles")
-    return await install_audio_bundle(container.paths.models, container.preferences,
-                                      replace_existing=True)
+    return await install_audio_bundle(
+        container.paths.models, container.preferences, replace_existing=True
+    )
 
 
 @router.post("/engines/audio/custom")
@@ -1584,17 +1594,21 @@ async def update_settings(
     container: ContainerDependency,
 ) -> PreferenceResponse:
     values = payload.model_dump(exclude_unset=True)
-    if (
-        values.get("default_summary_template_id") is not None
-        and not container.summary_templates.get(values["default_summary_template_id"])
-    ):
+    if values.get(
+        "default_summary_template_id"
+    ) is not None and not container.summary_templates.get(values["default_summary_template_id"]):
         raise ValidationError("Note format not found")
     if "models_directory" in values:
         values["models_directory"] = _validate_models_directory(values["models_directory"])
     _validate_provider_preferences(container, values)
-    if {"faster_whisper", "diarization", "live_transcription_profile",
-        "final_transcription_profile", "live_transcription_engine",
-        "final_transcription_engine"} & values.keys():
+    if {
+        "faster_whisper",
+        "diarization",
+        "live_transcription_profile",
+        "final_transcription_profile",
+        "live_transcription_engine",
+        "final_transcription_engine",
+    } & values.keys():
         audio_setup = container.preferences.get_all().get("audio_setup")
         if isinstance(audio_setup, dict):
             values["audio_setup"] = {**audio_setup, "mode": "custom"}
@@ -1626,9 +1640,8 @@ async def update_settings(
             "diarization",
             DIARIZATION_DEFAULTS,
         )
-        if (
-            config["keep_model_loaded"]
-            and container.diarization_service.capability().get("installed")
+        if config["keep_model_loaded"] and container.diarization_service.capability().get(
+            "installed"
         ):
             _track_background_task(
                 request,
@@ -1647,9 +1660,10 @@ async def update_settings(
             SUMMARY_DEFAULTS,
         )
         summary_models = container.summary_engine.capability().get("models", [])
-        selected_summary_installed = (config.get("profile_id") == "custom-gguf" and (
-            Path(str(config.get("model_path") or "")).expanduser().is_file()
-        )) or any(
+        selected_summary_installed = (
+            config.get("profile_id") == "custom-gguf"
+            and (Path(str(config.get("model_path") or "")).expanduser().is_file())
+        ) or any(
             item.get("id") == config.get("profile_id") and item.get("installed")
             for item in summary_models
             if isinstance(item, dict)
@@ -1669,7 +1683,8 @@ async def update_settings(
                 "reload-summary-engine",
             )
         elif (
-            config["provider"] != "local" or not config["keep_model_loaded"]
+            config["provider"] != "local"
+            or not config["keep_model_loaded"]
             or not config.get("preload_on_start", True)
         ):
             container.summary_engine.unload()
@@ -1722,8 +1737,7 @@ def _validate_provider_preferences(
         profile = container.transcription_profiles.get(profile_id)
         if profile.engine != engine_id:
             raise ValidationError(
-                f"Transcription profile {profile_id} belongs to {profile.engine}, "
-                f"not {engine_id}"
+                f"Transcription profile {profile_id} belongs to {profile.engine}, not {engine_id}"
             )
         supported = profile.supports_live if purpose == "live" else profile.supports_final
         if not supported:
@@ -1741,8 +1755,7 @@ def _validate_provider_preferences(
         }
         engine_id = str(config.get("engine") or "")
         registered = {
-            item.descriptor.id
-            for item in container.provider_registry.registrations("diarization")
+            item.descriptor.id for item in container.provider_registry.registrations("diarization")
         }
         if engine_id not in registered:
             raise ValidationError(f"Unknown diarization provider: {engine_id}")
@@ -1759,11 +1772,7 @@ def _validate_provider_preferences(
         engine_id = str(config.get("engine") or "llama-cpp")
         models = container.summary_engine.capability().get("models", [])
         selected = next(
-            (
-                item
-                for item in models
-                if isinstance(item, dict) and item.get("id") == profile_id
-            ),
+            (item for item in models if isinstance(item, dict) and item.get("id") == profile_id),
             None,
         )
         if selected is None:
@@ -1786,11 +1795,7 @@ def _validate_provider_preferences(
         provider_id = str(config.get("embedding_provider") or "")
         models = container.embedding_provider.capability(config).get("models", [])
         selected = next(
-            (
-                item
-                for item in models
-                if isinstance(item, dict) and item.get("id") == profile_id
-            ),
+            (item for item in models if isinstance(item, dict) and item.get("id") == profile_id),
             None,
         )
         if selected is None:
@@ -1970,6 +1975,7 @@ def _finish_background_task(
 @router.get("/meetings", response_model=list[MeetingResponse])
 def list_meetings(
     container: ContainerDependency,
+    request: Request,
     search: str | None = Query(default=None, max_length=200),
     date_from: date | None = None,
     date_to: date | None = None,
@@ -1978,7 +1984,7 @@ def list_meetings(
     if date_from and date_to and date_from > date_to:
         raise ValidationError("date_from cannot be after date_to")
     return [
-        MeetingResponse.model_validate(item)
+        _meeting_response(item, request)
         for item in container.meeting_service.list(
             search=search,
             date_from=date_from.isoformat() if date_from else None,
@@ -1989,14 +1995,29 @@ def list_meetings(
 
 
 @router.post("/meetings", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
-def create_meeting(payload: MeetingCreate, container: ContainerDependency) -> MeetingResponse:
-    meeting = container.meeting_service.create(**payload.model_dump())
-    return MeetingResponse.model_validate(meeting)
+def create_meeting(
+    payload: MeetingCreate, container: ContainerDependency, request: Request
+) -> MeetingResponse:
+    meeting = container.meeting_service.create(
+        **payload.model_dump(),
+        creator_id=request.state.user["id"] if container.settings.hosted else None,
+    )
+    return _meeting_response(meeting, request)
 
 
 @router.get("/meetings/{meeting_id}", response_model=MeetingResponse)
-def get_meeting(meeting_id: int, container: ContainerDependency) -> MeetingResponse:
-    return MeetingResponse.model_validate(container.meeting_service.get(meeting_id))
+def get_meeting(
+    meeting_id: int, container: ContainerDependency, request: Request
+) -> MeetingResponse:
+    return _meeting_response(container.meeting_service.get(meeting_id), request)
+
+
+def _meeting_response(meeting: Any, request: Request) -> MeetingResponse:
+    response = MeetingResponse.model_validate(meeting)
+    if hasattr(request.app.state, "accounts"):
+        access = request.app.state.accounts.meeting_access(meeting.id, request.state.user)
+        response = response.model_copy(update=access)
+    return response
 
 
 @router.patch("/meetings/{meeting_id}", response_model=MeetingResponse)
@@ -2004,6 +2025,7 @@ async def update_meeting(
     meeting_id: int,
     payload: MeetingUpdate,
     container: ContainerDependency,
+    request: Request,
 ) -> MeetingResponse:
     values = payload.model_dump(exclude_unset=True)
     meeting = container.meeting_service.update(meeting_id, values)
@@ -2016,7 +2038,7 @@ async def update_meeting(
         )
     ):
         await container.rag_service.start_rebuild(meeting_id=meeting_id, force=False)
-    return MeetingResponse.model_validate(meeting)
+    return _meeting_response(meeting, request)
 
 
 @router.delete("/meetings/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -2030,10 +2052,10 @@ def delete_meeting(meeting_id: int, container: ContainerDependency) -> Response:
     response_model=MeetingResponse,
 )
 def delete_meeting_audio(
-    meeting_id: int, container: ContainerDependency
+    meeting_id: int, container: ContainerDependency, request: Request
 ) -> MeetingResponse:
     meeting = container.meeting_service.delete_audio(meeting_id)
-    return MeetingResponse.model_validate(meeting)
+    return _meeting_response(meeting, request)
 
 
 @router.post(
@@ -2243,8 +2265,10 @@ async def remember_speaker_voice(
     response_model=SpeakerResponse,
 )
 def link_speaker_profile(
-    transcription_id: int, speaker_id: int,
-    payload: SpeakerProfileLink, container: ContainerDependency,
+    transcription_id: int,
+    speaker_id: int,
+    payload: SpeakerProfileLink,
+    container: ContainerDependency,
 ) -> SpeakerResponse:
     speaker = container.speaker_service.link_existing_profile(
         transcription_id, speaker_id, payload.profile_id
@@ -2304,10 +2328,11 @@ def speaker_profile_audio(profile_id: int, container: ContainerDependency) -> Fi
 @router.get("/speaker-profiles/meetings", response_model=list[MeetingResponse])
 def speaker_profile_meetings(
     container: ContainerDependency,
+    request: Request,
     profile_ids: list[int] = Query(default=[]),
 ) -> list[MeetingResponse]:
     return [
-        MeetingResponse.model_validate(item)
+        _meeting_response(item, request)
         for item in container.speaker_service.profile_meetings(profile_ids)
     ]
 
@@ -2415,9 +2440,7 @@ async def update_transcript_segment(
     segment = container.transcription_service.update_segment(segment_id, payload.text)
     transcription = container.transcriptions.get(segment.transcription_id)
     if transcription and container.rag_service.can_index_incrementally():
-        await container.rag_service.start_rebuild(
-            meeting_id=transcription.meeting_id, force=False
-        )
+        await container.rag_service.start_rebuild(meeting_id=transcription.meeting_id, force=False)
     return TranscriptSegmentResponse.model_validate(segment)
 
 
@@ -2431,9 +2454,7 @@ async def activate_transcription(
 ) -> TranscriptionResponse:
     transcription = container.transcription_service.activate(transcription_id)
     if container.rag_service.can_index_incrementally():
-        await container.rag_service.start_rebuild(
-            meeting_id=transcription.meeting_id, force=False
-        )
+        await container.rag_service.start_rebuild(meeting_id=transcription.meeting_id, force=False)
     return TranscriptionResponse.model_validate(transcription)
 
 
@@ -2451,14 +2472,8 @@ async def find_replace(
         **payload.model_dump(),
     )
     transcription = container.transcriptions.get(transcription_id)
-    if (
-        replacements
-        and transcription
-        and container.rag_service.can_index_incrementally()
-    ):
-        await container.rag_service.start_rebuild(
-            meeting_id=transcription.meeting_id, force=False
-        )
+    if replacements and transcription and container.rag_service.can_index_incrementally():
+        await container.rag_service.start_rebuild(meeting_id=transcription.meeting_id, force=False)
     return FindReplaceResponse(replacements=replacements)
 
 
@@ -2508,10 +2523,7 @@ async def events(request: Request, container: ContainerDependency) -> StreamingR
     async def stream() -> AsyncIterator[str]:
         previous = ""
         last_activity_id = 0
-        while (
-            not request.app.state.shutdown_requested
-            and not await request.is_disconnected()
-        ):
+        while not request.app.state.shutdown_requested and not await request.is_disconnected():
             snapshot = [
                 JobResponse.model_validate(job).model_dump(mode="json")
                 for job in container.jobs.list(limit=50)

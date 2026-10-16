@@ -53,6 +53,7 @@ def answer_stream(
                 await task
 
     return StreamingResponse(
-        events(), media_type="application/x-ndjson",
+        events(),
+        media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

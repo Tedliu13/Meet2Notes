@@ -60,9 +60,7 @@ def create_webhook_endpoint(
     payload: WebhookEndpointWrite,
     container: ContainerDependency,
 ) -> dict[str, Any]:
-    endpoint, signing_secret = container.webhook_service.create_endpoint(
-        payload.model_dump()
-    )
+    endpoint, signing_secret = container.webhook_service.create_endpoint(payload.model_dump())
     return {
         "endpoint": container.webhook_service.endpoint_payload(endpoint),
         "signing_secret": signing_secret,
@@ -75,9 +73,7 @@ def update_webhook_endpoint(
     payload: WebhookEndpointWrite,
     container: ContainerDependency,
 ) -> dict[str, Any]:
-    endpoint = container.webhook_service.update_endpoint(
-        endpoint_id, payload.model_dump()
-    )
+    endpoint = container.webhook_service.update_endpoint(endpoint_id, payload.model_dump())
     return container.webhook_service.endpoint_payload(endpoint)
 
 
@@ -135,9 +131,7 @@ def webhook_insights(
 ) -> list[dict[str, Any]]:
     if container.meetings.get(meeting_id) is None:
         raise NotFoundError("Meeting not found")
-    return [
-        asdict(item) for item in container.webhook_repository.insights(meeting_id, limit)
-    ]
+    return [asdict(item) for item in container.webhook_repository.insights(meeting_id, limit)]
 
 
 @router.put("/insights/{insight_id}")

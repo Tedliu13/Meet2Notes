@@ -11,7 +11,9 @@
 ## 已確認的專案選擇
 
 - 保留 fork 的 SQLite、FTS5、RAG 向量格式與版本化 migrations；本次是既有應用容器化，不依平台「全新專案預設 PostgreSQL 18」重寫資料層。
-- 個人使用、單一共用 workspace，先提供 HTTP Basic 登入。這不是多租戶；多人帳號、角色與資料隔離須另行設計及測試。
+- Hosted 使用個人帳號與可撤銷的 HTTPS cookie session；現有 Coolify `M2N_AUTH_USERNAME`／`M2N_AUTH_PASSWORD` 僅在帳號資料庫為空時建立初始管理者，之後不覆寫資料庫密碼。Basic API 認證使用個人帳號並套用同一套權限。
+- 所有已登入且啟用中的使用者可觀看全部會議、播放、匯出及使用會後問答／RAG；這是共享會議庫，不是私人資料隔離。只有管理者、建立者、共同管理者可修改會議、逐字稿、講者及 AI 筆記或取消該會議工作。設定與全域配置僅管理者可用；共同管理名單僅管理者、建立者可修改。
+- 註冊無需審核，立即啟用一般帳號，不接受自行指定角色、建立者或啟用狀態。停用、刪除、重設密碼必須撤銷 sessions；刪除採帳號 tombstone 保留會議歸屬，帳號名稱不可重用。既有會議首次升級歸初始管理者。不得刪除最後管理者。
 - Hosted 模式停用麥克風、系統音訊、即時錄音／轉錄及依賴它們的即時助理；保留音檔匯入、最終轉錄、講者辨識、摘要、Prompt、RAG、匯出、外掛與會後 Webhook。
 - 模型不得進入 image 或 build context。部署後才下載至獨立 `/models` named volume，含模型快取及私有模型 runtimes。
 - VM 曾在摘要推論出現 SIGILL；Docker 的 llama-cpp-python 必須由 source build、關閉 native／進階 x86 指令集最佳化，不能在未驗證 VM CPU 能力前恢復 `-march=native` 或換用預編譯 wheel。

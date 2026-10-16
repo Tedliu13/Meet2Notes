@@ -1,7 +1,7 @@
 # Meet2Notes 部署至 NCDRCC Coolify
 
 本次目標：`https://meet2notes.ncdrcc.com`。平台管理介面：`https://deploy.ncdrcc.com`。
-無既有資料須搬移。VM 為 16 CPU／128 GB RAM、無 GPU；平台文件列出 14 TB SSD、Docker root `/data/docker`、Traefik 80/443。Coolify 版本尚未提供。
+既有會議、聲紋及設定保留於 `/data`；本次帳號升級不搬移或清空資料。VM 為 16 CPU／128 GB RAM、無 GPU；平台文件列出 14 TB SSD、Docker root `/data/docker`、Traefik 80/443。Coolify 版本尚未提供。
 
 ## 1. 部署與登入
 
@@ -9,9 +9,25 @@
 2. Build Pack 選 **Docker Compose**，Base Directory `/`，Compose Location `/docker-compose.yaml`。
 3. 載入 Compose 後，meet2notes service 的 Domain 設為 `https://meet2notes.ncdrcc.com:8765`；`:8765` 指容器內部路由 port，使用者仍開啟不帶 port 的正式 HTTPS 網址。
 4. 填入下表三個必要 secrets（runtime variables），確認 storage、資源限制及 health check 後由管理者部署。
-5. 瀏覽器會顯示 HTTP Basic 登入視窗。頁面、業務 API、靜態資源均需登入；`/api/health` 與僅回報存活狀態／版本的 `/api/health/live` 公開。
+5. 瀏覽器顯示 `/login` 登入／註冊頁。註冊填姓名、帳號、密碼後立即啟用並登入。頁面與業務 API 需登入；登入頁、靜態資源、登入／註冊 API、`/api/health` 及 `/api/health/live` 公開。
 
-這是個人、單一 workspace 的部署；共用帳密者可以存取全部會議及設定。正式導入多人使用前，需另行設計帳號、角色、資料歸屬與隔離，不能把 Basic Auth 視為多租戶支援。
+這是多人帳號、單一共享會議庫。所有啟用且登入的使用者可觀看全部會議、播放、匯出、使用 Prompt 與 RAG 問答；會議不提供私人隔離。只有管理者、建立者及共同管理者可修改會議、逐字稿、講者、AI 筆記、匯入／重跑轉錄及取消該會議背景工作。只有管理者與建立者可指定共同管理者。設定、使用者管理、API keys、模型管理、全域模板、外掛、Webhook 及全域索引重建僅管理者可操作。一般使用者仍可選擇自己新會議的處理選項。
+
+### 帳號升級與操作
+
+- 首次建立帳號表時，以現有 `M2N_AUTH_USERNAME`／`M2N_AUTH_PASSWORD` 建立管理者；姓名初始為帳號，可於設定內修改。既有會議歸該管理者。保留現有三個 secrets，不需提供新的管理憑證。
+- migration `014_accounts.sql` 新增使用者、sessions、會議建立者／共同管理關聯、登入頻率記錄，不重建既有會議、逐字稿、聲紋、RAG 或模型。升級前先做 SQLite backup API 一致性備份，連同 `/data` 重要檔案與獨立加密密鑰備份；管理者測試還原。回復舊版本應還原升級前的一致性備份，不能直接刪表或刪 volume。
+- 後續 rebuild／重新啟動不會重設帳號。管理者於「設定 → 使用者管理」修改姓名／密碼、啟用／停用／刪除帳號。密碼不得留空覆蓋；留空表示不改。新密碼至少 12 字元，最多 256 字元。管理者不能停用／刪除自己或管理者帳號；這版不提供角色升降。
+- 密碼使用帶隨機 salt 的 scrypt（N=131072、r=8、p=1）雜湊。session 使用隨機 token，資料庫只存 token hash，有效 12 小時；cookie 為 `Secure`、`HttpOnly`、`SameSite=Strict`。Hosted 瀏覽器登入必須 HTTPS。登出、停用、刪除、重設密碼會撤銷 sessions；已啟動的背景工作仍依既有佇列執行。
+- 刪除是不可登入的帳號 tombstone：從管理／指派名單移除、清除密碼與 sessions，保留原會議與建立者姓名供歸屬查考；帳號名稱不可重用，不是個資抹除操作。停用不刪會議；重新啟用後需重新登入。
+- 共同管理可指定多位啟用中的使用者。會議標題旁與會議庫會顯示建立者／共同管理者姓名。撤銷共同管理後，下一次 API 呼叫立即重新檢查權限；已發出的工作不會因撤銷權限而自動取消。
+- HTTP Basic 保留供 MCP／非瀏覽器 API 使用，但改用個人帳號資料庫，遵守相同角色與會議權限。不要讓多人共用初始管理者帳密。API 客戶端也可登入取得 session cookie。
+- 註冊全站限 30 次／15 分鐘；登入每帳號限 15 次、全站 120 次／15 分鐘；Basic API 全站限 1200 次／15 分鐘。限流狀態存 SQLite，重啟不清零；不信任客戶端偽造 IP 標頭。跨來源寫入拒絕；輸入驗證回應不回顯密碼。
+- 在管理者實際操作 Coolify 部署此版本後，檢查：管理者登入與設定、一般帳號註冊、一般帳號觀看他人會議但無法修改、加入與移除共同管理、停用／重設密碼後原登入失效、舊會議與下載／播放正常。
+
+部署的 mounts 均不變：type `volume`，source `meet2notes-data` → `/data`、`meet2notes-models` → `/models`、`meet2notes-cache` → `/cache`，皆 read-only=false。沒有新增 host ports、host binds、特權或 secrets。帳號／session／權限資料均包含於 `/data` SQLite 備份。
+
+安全設計參考：[OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)、[OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)。
 
 參考：[Coolify Compose](https://coolify.io/docs/applications/builds/docker-compose)、[持久化儲存](https://coolify.io/docs/applications/configuration/persistent-storage)。
 
@@ -19,7 +35,7 @@
 
 | 變數 | 必要性／設定 |
 |---|---|
-| `M2N_AUTH_USERNAME` | 必要，個人登入帳號 |
+| `M2N_AUTH_USERNAME` | 必要，首次建立初始管理者帳號；之後由資料庫管理 |
 | `M2N_AUTH_PASSWORD` | 必要，管理者設定強密碼；不得提交 Git |
 | `M2N_SECRETS_KEY` | 必要，Fernet key；獨立於資料備份保管，重新部署保持不變 |
 | `M2N_ALLOWED_HOSTS` | 預設 `meet2notes.ncdrcc.com`，多個 hostname 用逗號分隔 |

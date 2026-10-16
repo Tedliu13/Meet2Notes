@@ -36,7 +36,10 @@ def test_authentication_and_host_validation(hosted_client):
     bad_host = hosted_client.get("/api/health/live", headers={"Host": "evil.example"})
     assert bad_host.status_code == 400
     assert hosted_client.get("/api/health/live/extra").status_code == 401
-    for path in ("/", "/api/meetings", "/api/settings", "/api/docs", "/static/js/app.js"):
+    assert hosted_client.get("/", follow_redirects=False).status_code == 303
+    assert hosted_client.get("/login").status_code == 200
+    assert hosted_client.get("/static/js/app.js").status_code == 200
+    for path in ("/api/meetings", "/api/settings", "/api/docs"):
         assert hosted_client.get(path).status_code == 401
     assert hosted_client.get("/", auth=("owner", "wrong")).status_code == 401
     assert hosted_client.get("/", headers={"Authorization": "Basic !!!"}).status_code == 401

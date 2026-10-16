@@ -153,6 +153,7 @@
         method: options.method || "GET", path, status: response.status, elapsed_ms: elapsed,
       });
     }
+    if (response.status === 401 && document.body.dataset.hosted === "true") location.assign("/login");
     if (response.status === 204) return null;
     const contentType = response.headers.get("content-type") || "";
     const body = contentType.includes("json") ? await response.json() : await response.text();
@@ -397,6 +398,7 @@
         const requestedLanguage = control.value;
         applyLanguage(requestedLanguage);
         try {
+          if (document.body.dataset.hosted === "true" && document.body.dataset.isAdmin !== "true") return;
           await api("/api/settings", {
             method: "PUT",
             body: JSON.stringify({ ui_language: requestedLanguage }),
@@ -406,7 +408,7 @@
         }
       });
     });
-    api("/api/settings")
+    api(document.body.dataset.hosted === "true" && document.body.dataset.isAdmin !== "true" ? "/api/workspace/preferences" : "/api/settings")
       .then((preferences) => {
         applyLanguage(preferences.ui_language || defaultLanguage);
         applyTheme(preferences.ui_theme || "system");
@@ -459,6 +461,7 @@
         const next = resolveTheme(currentThemePreference) === "dark" ? "light" : "dark";
         applyTheme(next);
         try {
+          if (document.body.dataset.hosted === "true" && document.body.dataset.isAdmin !== "true") return;
           await api("/api/settings", {
             method: "PUT",
             body: JSON.stringify({ ui_theme: next }),

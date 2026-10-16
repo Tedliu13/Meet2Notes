@@ -37,7 +37,31 @@ The Docker image contains application/runtime dependencies only; model weights a
 downloaded after deployment into a separate persistent volume. Hosted mode uses
 four job workers, disables native recording/live transcription and the live
 assistant, and retains imported-media processing and post-meeting features.
-The deployment starts as a single private workspace, not a multi-tenant service.
+Hosted mode now supports self-registration and individual sign-in at `/login`.
+Registration asks for a name, username and password and signs in immediately.
+The existing `M2N_AUTH_USERNAME`/`M2N_AUTH_PASSWORD` bootstrap the first administrator
+only when the users table is empty; rebuilds never reset database account passwords.
+Existing meetings are assigned to that initial administrator during the first upgrade.
+
+All signed-in, active users can view every meeting, play/export its recordings and
+transcripts, and use post-meeting Prompt/RAG tools. Administrators, a meeting's
+creator and its assigned co-managers can edit that meeting, transcribe/identify
+speakers, generate/edit AI notes and cancel its jobs. Only administrators and the
+creator can change co-managers. Creator/co-manager name labels appear alongside
+meeting names. This remains a shared library, not private tenant isolation.
+
+Only administrators can access Settings, credentials and global configuration.
+**Settings → User management** supports name/password edits, activation,
+deactivation and deletion. Passwords require 12–256 characters; leave a password
+field empty to keep it. Sessions expire after 12 hours and are revoked on logout,
+password reset, deactivation or deletion. Deletion removes login access and uses
+an account tombstone to preserve meetings and creator attribution; usernames cannot
+be reused. Administrators cannot deactivate/delete themselves or other administrators.
+Desktop mode retains its existing behavior. API/MCP Basic authentication uses the
+individual account database and the same permissions. Hosted browser login requires
+HTTPS. Back up SQLite and `/data` before applying migration 014; see the deployment
+guide for restore instructions, rate limits and the rollout checklist.
+
 Docker checks `/api/health/live`, a lightweight asynchronous endpoint without
 database or inference dependencies. `/api/health` retains database diagnostics.
 Speaker assignment and saved-profile reads run off the HTTP event loop. The

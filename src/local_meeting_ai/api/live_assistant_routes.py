@@ -131,7 +131,10 @@ async def stream_live_assistant(
         container.live_assistant_service.ensure_session(capture)
     return answer_stream(
         lambda progress, cancelled: container.live_assistant_service.ask(
-            meeting_id, payload.question, progress=progress, is_cancelled=cancelled,
+            meeting_id,
+            payload.question,
+            progress=progress,
+            is_cancelled=cancelled,
         ),
         structured=True,
     )

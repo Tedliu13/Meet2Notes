@@ -53,8 +53,9 @@
       document.querySelector("#visible-meeting-label").textContent = t("meetings.saved_count", { count: result.total }, result.total);
       list.innerHTML = result.items.map((item) => `<article class="library-result">
         <header><div><h3><a href="/?meeting=${item.id}">${escapeHTML(item.title)}</a></h3>
+        <div class="meeting-people">${item.creator ? `<span class="person-label">建立者：${escapeHTML(item.creator.name)}</span>` : ""}${(item.managers || []).map((user) => `<span class="person-label">共同管理：${escapeHTML(user.name)}</span>`).join("")}</div>
         <small>${escapeHTML(new Date(item.meeting_date).toLocaleString(Meet2Notes.currentLanguage, { dateStyle: "medium", timeStyle: "short" }))} · ${time(item.duration_ms)}${item.audio_deleted_at ? ` · ${t("library.audio_deleted")}` : ""}</small></div>
-        <div class="library-row-actions"><button type="button" class="button secondary" data-edit-tags="${item.id}" data-title="${escapeHTML(item.title)}">${t("library.edit_tags")}</button><button type="button" class="text-button danger" data-delete-meeting="${item.id}" data-title="${escapeHTML(item.title)}">${t("library.delete")}</button></div></header>
+        <div class="library-row-actions">${item.can_manage === false ? "" : `<button type="button" class="button secondary" data-edit-tags="${item.id}" data-title="${escapeHTML(item.title)}">${t("library.edit_tags")}</button><button type="button" class="text-button danger" data-delete-meeting="${item.id}" data-title="${escapeHTML(item.title)}">${t("library.delete")}</button>`}</div></header>
         ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ""}
         <div class="meeting-tags">${item.tags.map((label) => `<button type="button" class="meeting-tag" data-filter-tag="${label.id}">${escapeHTML(label.name)}</button>`).join("")}</div>
         ${item.matches.length ? `<div class="library-hits">${item.matches.map((hit) => `<a class="library-hit" href="/?meeting=${item.id}&segment=${hit.segment_id}"><strong>${time(hit.start_ms)} · ${escapeHTML(hit.speaker)}</strong>${highlight(hit.text)}</a>`).join("")}</div>` : ""}

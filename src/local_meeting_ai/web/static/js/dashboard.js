@@ -70,6 +70,7 @@
           <span class="meeting-thumb">${escapeHTML(meeting.title.slice(0, 1).toUpperCase())}</span>
           <div>
             <strong>${escapeHTML(meeting.title)}</strong>
+            <span class="meeting-people">${meeting.creator ? `<span class="person-label">建立者：${escapeHTML(meeting.creator.name)}</span>` : ""}${(meeting.managers || []).map((user) => `<span class="person-label">共同管理：${escapeHTML(user.name)}</span>`).join("")}</span>
             <span>${escapeHTML(meeting.description || `${meeting.recording_count} recording${meeting.recording_count === 1 ? "" : "s"}`)}</span>
           </div>
         </div>

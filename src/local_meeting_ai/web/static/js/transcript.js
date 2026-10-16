@@ -230,7 +230,7 @@
         api("/api/capabilities"),
         api("/api/audio/sources"),
         api("/api/capture/session"),
-        api("/api/settings"),
+        api(document.body.dataset.hosted === "true" ? "/api/workspace/preferences" : "/api/settings"),
         api("/api/summary-templates"),
       ];
       const meetingRequests = meetingId
@@ -265,6 +265,7 @@
       preferences = preferenceData;
       noteFormats = summaryTemplates;
       currentMeeting = meetingData;
+      if (meetingData) document.dispatchEvent(new CustomEvent("meet2notes:meetingloaded", { detail: { id: meetingData.id } }));
       captureCapability = sourceData.capability || {};
       audioSources = sourceData.sources || [];
       recordings = recordingData;
@@ -337,6 +338,7 @@
       api(`/api/meetings/${meetingId}/summaries`),
     ]);
     currentMeeting = meetingData;
+    if (meetingData) document.dispatchEvent(new CustomEvent("meet2notes:meetingloaded", { detail: { id: meetingData.id } }));
     recordings = recordingData;
     versions = versionData;
     meetingSummaries = summaryData;
@@ -914,7 +916,7 @@
             <a class="text-button speaker-card-action" href="/api/transcriptions/${activeTranscriptionId}/speakers/${speaker.id}/text">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM15 3v5h5M9 12h7M9 16h7"/></svg> Export TXT
             </a>
-            <button type="button" class="text-button speaker-card-action" data-summarize-speaker="${speaker.id}">
+            <button type="button" class="text-button speaker-card-action" data-summarize-speaker="${speaker.id}" data-summary-ready="${Boolean(speaker.summary_status === "completed" && speaker.summary_markdown)}">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 9.8 8.8 4 11l5.8 2.2L12 19l2.2-5.8L20 11l-5.8-2.2L12 3Z"/></svg>
               ${speaker.summary_status === "completed" ? "View AI summary" : "Resume by AI"}
             </button>

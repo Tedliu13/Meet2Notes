@@ -39,6 +39,7 @@ class MeetingService:
         description: str | None = None,
         source_type: SourceType = SourceType.MANUAL,
         language: str | None = None,
+        creator_id: int | None = None,
     ) -> Meeting:
         clean_title = title.strip()
         if not clean_title:
@@ -48,6 +49,7 @@ class MeetingService:
             description=_clean_optional(description),
             source_type=source_type,
             language=_clean_optional(language),
+            creator_id=creator_id,
         )
         self.storage.ensure_meeting(meeting.uuid)
         return meeting

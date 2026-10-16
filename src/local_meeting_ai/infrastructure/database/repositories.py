@@ -212,6 +212,7 @@ class MeetingRepository:
         description: str | None,
         source_type: SourceType,
         language: str | None,
+        creator_id: int | None = None,
     ) -> Meeting:
         meeting_uuid = str(uuid4())
         now = utc_now()
@@ -220,8 +221,8 @@ class MeetingRepository:
                 """
                 INSERT INTO meetings(
                     uuid, title, description, status, source_type, language,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at, updated_at, creator_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     meeting_uuid,
@@ -232,6 +233,7 @@ class MeetingRepository:
                     language,
                     now,
                     now,
+                    creator_id,
                 ),
             )
             meeting_id = cursor.lastrowid

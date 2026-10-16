@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登入 · Meet2Notes</title>
+  <link rel="stylesheet" href="/static/css/app.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/css/accounts.css?v={{ asset_version }}">
+  <script src="/static/js/login.js?v={{ asset_version }}" defer></script>
+</head>
+<body class="account-login">
+  <main class="account-card">
+    <img src="/static/icons/mark.svg" width="48" height="48" alt="">
+    <h1>Meet2Notes</h1><p>登入後即可觀看所有會議，並建立自己的會議。</p>
+    <nav class="account-tabs" aria-label="登入或註冊">
+      <button type="button" id="choose-login" aria-pressed="true">登入</button>
+      <button type="button" id="choose-register" aria-pressed="false">註冊新帳號</button>
+    </nav>
+    <form id="account-form">
+      <label class="field" id="name-field" hidden>姓名<input id="account-name" name="name" maxlength="100" autocomplete="name"></label>
+      <label class="field">帳號<input id="account-username" name="username" maxlength="80" autocomplete="username" required></label>
+      <label class="field">密碼<input id="account-password" name="password" type="password" maxlength="256" autocomplete="current-password" required></label>
+      <p id="register-help" hidden>帳號：3–80 字元英數、_、.、@ 或 -。密碼至少 12 字元。註冊完成立即登入。</p>
+      <p id="account-error" role="alert"></p>
+      <button class="button primary" id="account-submit" type="submit">登入</button>
+    </form>
+  </main>
+</body>
+</html>

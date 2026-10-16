@@ -42,6 +42,10 @@ class MeetingResponse(BaseModel):
     recording_count: int
     audio_deleted_at: str | None
     audio_deleted_bytes: int | None
+    creator: dict[str, Any] | None = None
+    managers: list[dict[str, Any]] = Field(default_factory=list)
+    can_manage: bool = True
+    can_share: bool = True
 
 
 class RecordingResponse(BaseModel):
@@ -236,9 +240,7 @@ class LiveAssistantPreference(SummaryEnginePreference):
     @classmethod
     def validate_trigger_phrases(cls, value: list[str]) -> list[str]:
         cleaned = [
-            item.strip().strip('"\'').strip()
-            for item in value
-            if item.strip().strip('"\'').strip()
+            item.strip().strip("\"'").strip() for item in value if item.strip().strip("\"'").strip()
         ]
         if any(len(item) > 120 for item in cleaned):
             raise ValueError("Live Assistant trigger phrases cannot exceed 120 characters")

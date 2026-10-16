@@ -23,9 +23,9 @@
     </div>
     <div class="page-header-actions">
       {% include "_theme_toggle.html" %}
-      <a class="icon-button" href="/settings" aria-label="Settings" title="Settings">
+      {% if not hosted or request.state.user.is_admin %}<a class="icon-button" href="/settings" aria-label="Settings" title="Settings">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1-1.8 3.1-.2-.1a2 2 0 0 0-2.4.3l-.6.4a2 2 0 0 0-.9 2.2v.2H10V21a2 2 0 0 0-.9-2.2l-.6-.4a2 2 0 0 0-2.4-.3l-.2.1-1.8-3.1.1-.1a2 2 0 0 0 1-2v-.8a2 2 0 0 0-1-2l-.1-.1L5.9 7l.2.1a2 2 0 0 0 2.4-.3l.6-.4A2 2 0 0 0 10 4.2V4h3.6v.2a2 2 0 0 0 .9 2.2l.6.4a2 2 0 0 0 2.4.3l.2-.1 1.8 3.1-.1.1a2 2 0 0 0-1 2v.8a2 2 0 0 0 1 2Z"/></svg>
-      </a>
+      </a>{% endif %}
     </div>
   </header>
 
@@ -51,6 +51,7 @@
         </span>
       </div>
 
+      <div id="meeting-people" class="meeting-people" aria-live="polite"></div>
       <div class="transcription-primary-actions">
         <button type="button" class="button primary start-transcription-button {{ '' if request.query_params.get('new') == '1' else 'hidden' }}" id="start-transcription">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
@@ -70,7 +71,7 @@
       </div>
     </header>
 
-    <div class="transcription-tag-bar hidden" id="transcription-tags"><div class="meeting-tags" id="current-meeting-tags"></div><button type="button" class="text-button" id="edit-meeting-tags">Edit tags</button></div>
+    <div class="transcription-tag-bar hidden" id="transcription-tags"><div class="meeting-tags" id="current-meeting-tags"></div><button type="button" class="text-button" data-meeting-write id="edit-meeting-tags">Edit tags</button></div>
 
     <nav class="meeting-tabs hidden" id="meeting-tabs" role="tablist" aria-label="Meeting workspace">
       <button type="button" class="active" role="tab" aria-selected="true" aria-controls="meeting-tab-transcript" data-meeting-tab="transcript">
@@ -155,7 +156,7 @@
         <progress id="transcription-progress-bar" max="100" value="0"></progress>
         <p>Segments appear as soon as the local model produces them.</p>
       </div>
-      <button class="text-button" id="cancel-transcription">Cancel</button>
+      <button class="text-button" data-meeting-write id="cancel-transcription">Cancel</button>
     </div>
 
     <div class="minimal-editor-toolbar">
@@ -199,7 +200,7 @@
       <header class="result-panel-header compact-result-panel-header">
         <h2>Speaker identification</h2>
         <div class="result-header-actions">
-          <button class="ai-note-action" id="speaker-rebuild-identification" type="button" title="Run speaker identification again">
+          <button class="ai-note-action" data-meeting-write id="speaker-rebuild-identification" type="button" title="Run speaker identification again">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5"/><path d="M18.5 10a7 7 0 0 0-12-3L4 11M5.5 14a7 7 0 0 0 12 3l2.5-4"/></svg>
             <span>Rebuild identification</span>
           </button>
@@ -215,7 +216,7 @@
         <div class="ai-result-controls">
           <span class="result-status" id="ai-result-status">Waiting</span>
           <div class="ai-result-actions" aria-label="AI note actions">
-            <button class="ai-note-action" id="ai-rebuild-notes" type="button" title="Rebuild AI notes">
+            <button class="ai-note-action" data-meeting-write id="ai-rebuild-notes" type="button" title="Rebuild AI notes">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5"/><path d="M18.5 10a7 7 0 0 0-12-3L4 11M5.5 14a7 7 0 0 0 12 3l2.5-4"/></svg>
               <span>Rebuild AI</span>
             </button>
@@ -223,7 +224,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></svg>
               <span>Copy All</span>
             </button>
-            <button class="ai-note-action" id="ai-edit-notes" type="button" title="Edit AI notes" hidden>
+            <button class="ai-note-action" data-meeting-write id="ai-edit-notes" type="button" title="Edit AI notes" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-.5 4.5L8 20l11-11-4-4L4 16Z"/><path d="m13 7 4 4"/></svg>
               <span>Edit</span>
             </button>
@@ -231,7 +232,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
               <span id="ai-view-mode-label">Markdown</span>
             </button>
-            <button class="ai-note-action primary" id="ai-save-notes" type="button" title="Save AI notes" hidden>
+            <button class="ai-note-action primary" data-meeting-write id="ai-save-notes" type="button" title="Save AI notes" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l2 2v14H5zM8 4v6h8V4M8 20v-6h8v6"/></svg>
               <span>Save</span>
             </button>
@@ -250,7 +251,7 @@
             <button type="button" data-audio-export="mp3"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 15h6M10 12h4"/></svg>Export MP3</button>
             <button type="button" data-audio-export="wav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 15h6M10 12h4"/></svg>Export WAV</button>
             <button type="button" data-audio-export="flac"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 15h6M10 12h4"/></svg>Export FLAC</button>
-            <button type="button" class="utility-delete-action" id="delete-meeting-audio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>Delete audio</button>
+            <button type="button" class="utility-delete-action" data-meeting-write id="delete-meeting-audio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>Delete audio</button>
           </div>
         </section>
         <section class="utility-card utility-card-transcript" aria-labelledby="utility-transcript-title">
@@ -454,7 +455,7 @@
         </div>
       </div>
       <div class="postprocess-actions postprocess-options-actions">
-        <button type="button" class="button danger postprocess-discard" id="postprocess-options-cancel-all">Cancel and discard meeting</button>
+        <button type="button" class="button danger postprocess-discard" data-meeting-write id="postprocess-options-cancel-all">Cancel and discard meeting</button>
         <button type="button" class="button secondary" id="postprocess-options-cancel">Cancel</button>
         <button type="button" class="button primary" id="postprocess-options-start">Start processing</button>
       </div>
@@ -489,7 +490,7 @@
         <textarea id="postprocess-log" readonly spellcheck="false" aria-live="polite" aria-label="Transcription processing log"></textarea>
       </section>
       <div class="postprocess-actions">
-        <button type="button" class="button danger postprocess-discard" id="postprocess-cancel-all">Cancel and discard meeting</button>
+        <button type="button" class="button danger postprocess-discard" data-meeting-write id="postprocess-cancel-all">Cancel and discard meeting</button>
         <button type="button" class="button secondary" id="postprocess-background">Continue in background</button>
         <button type="button" class="button primary hidden" id="postprocess-results">View meeting results</button>
       </div>
@@ -649,6 +650,15 @@
 </dialog>
 {% include "_post_meeting_assistant.html" %}
 {% include "_tags.html" %}
+
+{% if hosted %}
+<dialog class="modal compact-modal" id="meeting-managers-dialog" aria-labelledby="meeting-managers-title">
+  <div class="modal-panel"><h2 id="meeting-managers-title">共同管理</h2><p>選取可修改逐字稿、執行講者辨識與 AI 筆記的使用者。</p>
+    <div class="manager-options" id="meeting-manager-options"></div>
+    <div class="modal-actions"><button type="button" class="button secondary" id="close-meeting-managers">取消</button><button type="button" class="button primary" id="save-meeting-managers">儲存</button></div>
+  </div>
+</dialog>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/tags.js?v={{ asset_version }}" defer></script>

@@ -9,6 +9,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -16,6 +18,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from local_meeting_ai import __version__
 from local_meeting_ai.adapters.litellm_runtime import load_litellm
+from local_meeting_ai.api.account_routes import router as account_router
 from local_meeting_ai.api.hosted import HostedMiddleware
 from local_meeting_ai.api.library_routes import router as library_router
 from local_meeting_ai.api.live_assistant_routes import router as live_assistant_router
@@ -40,6 +43,7 @@ from local_meeting_ai.domain.protocols import (
     SummaryEngine,
     TranscriptionEngine,
 )
+from local_meeting_ai.infrastructure.accounts import Accounts
 from local_meeting_ai.infrastructure.database.library import LibraryRepository
 
 logger = logging.getLogger(__name__)
@@ -58,12 +62,14 @@ def create_app(
 ) -> FastAPI:
     resolved_settings = settings or AppSettings()
     if resolved_settings.hosted:
-        if not all((
-            resolved_settings.auth_username,
-            resolved_settings.auth_password,
-            resolved_settings.secrets_key,
-            resolved_settings.allowed_hosts,
-        )):
+        if not all(
+            (
+                resolved_settings.auth_username,
+                resolved_settings.auth_password,
+                resolved_settings.secrets_key,
+                resolved_settings.allowed_hosts,
+            )
+        ):
             raise ValueError("Hosted mode requires auth credentials, secrets key and allowed hosts")
         import keyring
 
@@ -176,6 +182,13 @@ def create_app(
     app.state.shutdown_requested = False
     app.state.services_ready = False
 
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request: Request, error: RequestValidationError) -> object:
+        if request.url.path.startswith(("/api/auth/", "/api/users")):
+            # Pydantic errors otherwise echo password input, including unexpected fields.
+            return JSONResponse({"detail": "請檢查輸入格式與欄位長度"}, status_code=422)
+        return await request_validation_exception_handler(request, error)
+
     @app.get("/api/health/live", include_in_schema=False)
     async def liveness() -> JSONResponse:
         # No sync dependency, thread-pool work, model inspection or DB access:
@@ -191,7 +204,10 @@ def create_app(
         host.strip() for host in resolved_settings.allowed_hosts.split(",") if host.strip()
     )
     if resolved_settings.hosted:
-        app.add_middleware(HostedMiddleware, settings=resolved_settings)
+        accounts = Accounts(container.database)
+        accounts.bootstrap(resolved_settings.auth_username, resolved_settings.auth_password)
+        app.state.accounts = accounts
+        app.add_middleware(HostedMiddleware, settings=resolved_settings, accounts=accounts)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(dict.fromkeys(allowed_hosts)))
 
     @app.middleware("http")
@@ -203,7 +219,8 @@ def create_app(
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = (
-            "camera=(), microphone=(), geolocation=()" if resolved_settings.hosted
+            "camera=(), microphone=(), geolocation=()"
+            if resolved_settings.hosted
             else "camera=(), microphone=(self), geolocation=()"
         )
         if resolved_settings.hosted:
@@ -248,29 +265,28 @@ def create_app(
     templates = Jinja2Templates(directory=template_dir)
     templates.env.globals["hosted"] = resolved_settings.hosted
     latest_static_change = max(
-        (
-            path.stat().st_mtime_ns
-            for path in static_dir.rglob("*")
-            if path.is_file()
-        ),
+        (path.stat().st_mtime_ns for path in static_dir.rglob("*") if path.is_file()),
         default=0,
     )
-    templates.env.globals["asset_version"] = (
-        f"{__version__}-{latest_static_change:x}"
-    )
+    templates.env.globals["asset_version"] = f"{__version__}-{latest_static_change:x}"
 
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     app.include_router(api_router)
     app.include_router(library_router)
     app.include_router(live_assistant_router)
     app.include_router(webhook_router)
+    app.include_router(account_router)
     _register_web_routes(app, templates, container)
     return app
 
 
-def _register_web_routes(
-    app: FastAPI, templates: Jinja2Templates, container: Container
-) -> None:
+def _register_web_routes(app: FastAPI, templates: Jinja2Templates, container: Container) -> None:
+    @app.get("/login", include_in_schema=False)
+    async def login_page(request: Request) -> object:
+        if not container.settings.hosted:
+            return RedirectResponse("/", status_code=303)
+        return templates.TemplateResponse(request=request, name="login.html", context={})
+
     @app.get("/", include_in_schema=False)
     async def dashboard(request: Request) -> object:
         meetings = container.meeting_service.list(limit=100)
@@ -303,6 +319,9 @@ def _register_web_routes(
     @app.get("/meetings", include_in_schema=False)
     async def meetings_library(request: Request) -> object:
         library = LibraryRepository(container.database).search()
+        if container.settings.hosted:
+            for item in library["items"]:
+                item.update(app.state.accounts.meeting_access(item["id"], request.state.user))
         return templates.TemplateResponse(
             request=request,
             name="meetings.html",

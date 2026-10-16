@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from local_meeting_ai.api.dependencies import get_container
@@ -39,19 +39,24 @@ class ActionWrite(BaseModel):
 @router.get("/library")
 def search_library(
     container: ContainerDependency,
+    request: Request,
     query: str = Query(default="", max_length=300),
     scope: Literal["all", "title", "transcript"] = "all",
     tag_id: int | None = Query(default=None, ge=1),
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0, le=1000000),
 ) -> dict[str, Any]:
-    return LibraryRepository(container.database).search(
+    result = LibraryRepository(container.database).search(
         query=query,
         scope=scope,
         tag_id=tag_id,
         limit=limit,
         offset=offset,
     )
+    if container.settings.hosted:
+        for item in result["items"]:
+            item.update(request.app.state.accounts.meeting_access(item["id"], request.state.user))
+    return result
 
 
 @router.get("/tags")
