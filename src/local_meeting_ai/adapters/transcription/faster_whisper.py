@@ -7,7 +7,10 @@ import importlib.util
 import logging
 import math
 import threading
+import time
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
@@ -231,7 +234,7 @@ class FasterWhisperEngine:
             runtime = self._runtime_capability["cuda_runtime"]
             if request.device == "auto" and runtime.get("message"):
                 progress(0.01, runtime["message"])
-            progress(0.02, f"Loading the {request.model} model")
+            progress(0.02, f"Loading the {request.model} model (percentage unavailable)")
             try:
                 model, slots, model_key = self._get_model(
                     model_class,
@@ -261,7 +264,15 @@ class FasterWhisperEngine:
 
             if is_cancelled():
                 raise JobCancelledError("Transcription was cancelled")
-            with slots:
+            progress(0.025, f"Waiting for an inference slot for {request.model} "
+                     "(percentage unavailable)")
+            wait_started = time.monotonic()
+            with _inference_slot(slots, is_cancelled):
+                logger.info("Faster Whisper inference slot acquired: model=%s wait=%.1fs",
+                            request.model, time.monotonic() - wait_started)
+                progress(0.03, "Analyzing audio "
+                         "(VAD and language detection; percentage unavailable)")
+                analysis_started = time.monotonic()
                 raw_segments, info = model.transcribe(
                     str(request.audio_path),
                     language=request.language,
@@ -280,6 +291,11 @@ class FasterWhisperEngine:
                     word_timestamps=request.word_timestamps,
                     condition_on_previous_text=request.condition_on_previous_text,
                 )
+                logger.info("Faster Whisper audio analysis completed: model=%s elapsed=%.1fs",
+                            request.model, time.monotonic() - analysis_started)
+                progress(0.035, "Decoding audio; waiting for the first transcript segment "
+                         "(percentage unavailable)")
+                decoding_started = time.monotonic()
                 duration = float(getattr(info, "duration", 0.0) or 0.0)
                 drafts: list[SegmentDraft] = []
                 for index, segment in enumerate(raw_segments):
@@ -288,6 +304,11 @@ class FasterWhisperEngine:
                     text = str(segment.text).strip()
                     if not text:
                         continue
+                    if not drafts:
+                        logger.info(
+                            "Faster Whisper first transcript segment: model=%s elapsed=%.1fs",
+                            request.model, time.monotonic() - decoding_started,
+                        )
                     start = max(0.0, float(segment.start))
                     end = max(start, float(segment.end))
                     average_log_probability = _optional_float(
@@ -388,6 +409,7 @@ class FasterWhisperEngine:
                 compute_type,
                 self.models_dir,
             )
+            load_started = time.monotonic()
             model_instance = model_class(
                 model,
                 device=device,
@@ -401,7 +423,8 @@ class FasterWhisperEngine:
             self._models[key] = model_instance
             self._model_slots[key] = threading.BoundedSemaphore(num_workers)
             self._resident_models = (model,)
-            logger.info("Faster Whisper model %s is resident in memory", model)
+            logger.info("Faster Whisper model %s is resident in memory (load=%.1fs)",
+                        model, time.monotonic() - load_started)
             return model_instance, self._model_slots[key], key
 
     def _unload_model(self, key: tuple[Any, ...]) -> None:
@@ -477,6 +500,23 @@ class FasterWhisperEngine:
             if candidate.is_dir() and any(candidate.iterdir()):
                 installed.add(name)
         return sorted(installed)
+
+
+@contextmanager
+def _inference_slot(
+    slots: threading.BoundedSemaphore, is_cancelled: CancellationCheck,
+) -> Iterator[None]:
+    while not slots.acquire(timeout=0.5):
+        if is_cancelled():
+            raise JobCancelledError(
+                "Transcription was cancelled while waiting for an inference slot"
+            )
+    try:
+        if is_cancelled():
+            raise JobCancelledError("Transcription was cancelled")
+        yield
+    finally:
+        slots.release()
 
 
 def _serialize_words(words: Any) -> list[dict[str, Any]] | None:

@@ -287,7 +287,8 @@
       renderProgress(activeJob);
       restorePostprocessing(jobs);
 
-      const preferred = versions.find((item) => item.is_active)
+      const preferred = versions.find((item) => Number(item.id) === Number(activeJob?.payload?.transcription_id))
+        || versions.find((item) => item.is_active)
         || versions.find((item) => ["running", "queued"].includes(item.status))
         || versions[0];
       if (preferred) {
@@ -328,6 +329,7 @@
   }
 
   async function loadMeetingWorkspace() {
+    startMeetingJobPolling();
     refreshMeetingTags();
     if (!meetingId) return;
     const [meetingData, recordingData, versionData, jobs, summaryData] = await Promise.all([
@@ -349,7 +351,8 @@
       ["queued", "running", "paused"].includes(job.status)) || null;
     renderProgress(activeJob);
     renderPostprocess(jobs);
-    const preferred = versions.find((item) => item.is_active)
+    const preferred = versions.find((item) => Number(item.id) === Number(activeJob?.payload?.transcription_id))
+      || versions.find((item) => item.is_active)
       || versions.find((item) => ["running", "queued"].includes(item.status))
       || versions[0];
     if (preferred) await selectTranscription(preferred.id);
@@ -3366,8 +3369,9 @@
       job.job_type === "transcribe" &&
       ["queued", "running", "paused"].includes(job.status));
     renderProgress(related || null);
-    if (activeTranscriptionId && related) {
-      await selectTranscription(activeTranscriptionId);
+    if (related) {
+      const transcriptionId = related.payload?.transcription_id || activeTranscriptionId;
+      if (transcriptionId) await selectTranscription(transcriptionId);
     }
     const terminal = jobs.filter((job) =>
       String(job.meeting_id) === String(meetingId) &&
@@ -3381,7 +3385,8 @@
       // A diarization completion must not switch away from the version the user
       // rebuilt. Only a newly finished transcription selects the active version.
       const finishedTranscription = newlyTerminal.some((job) => job.job_type === "transcribe");
-      const preferred = (!finishedTranscription && versions.find((item) =>
+      const preferred = versions.find((item) => Number(item.id) === Number(related?.payload?.transcription_id)) ||
+        (!finishedTranscription && versions.find((item) =>
         Number(item.id) === Number(activeTranscriptionId))) ||
         versions.find((item) => item.is_active) || versions[0];
       if (preferred) {
@@ -3409,6 +3414,7 @@
   let pendingJobSnapshot = null;
   let applyingJobSnapshot = false;
   let jobRetryTimer = null;
+  let jobSnapshotGeneration = 0;
   async function drainJobUpdates() {
     if (applyingJobSnapshot) return;
     clearTimeout(jobRetryTimer);
@@ -3433,8 +3439,51 @@
     }
   }
   subscribeJobs((jobs) => {
+    jobSnapshotGeneration++;
     pendingJobSnapshot = jobs;
     void drainJobUpdates();
+  });
+
+  let meetingJobPollTimer = null;
+  let meetingJobPollStopped = false;
+  async function pollMeetingJobs() {
+    if (meetingJobPollStopped || !meetingId) return;
+    const targetMeetingId = String(meetingId);
+    const generation = jobSnapshotGeneration;
+    try {
+      const jobs = await api(`/api/jobs?meeting_id=${encodeURIComponent(targetMeetingId)}`, {
+        signal: window.AbortSignal?.timeout?.(15000),
+      });
+      // A newer SSE event or navigation supersedes an in-flight poll.
+      if (!meetingJobPollStopped && String(meetingId) === targetMeetingId &&
+          generation === jobSnapshotGeneration) {
+        pendingJobSnapshot = jobs;
+        void drainJobUpdates();
+      }
+    } catch (error) {
+      console.warn("Could not poll meeting jobs; retrying", error);
+    } finally {
+      if (!meetingJobPollStopped) {
+        meetingJobPollTimer = setTimeout(pollMeetingJobs, 5000);
+      }
+    }
+  }
+
+  function startMeetingJobPolling() {
+    if (!meetingId || meetingJobPollTimer !== null) return;
+    meetingJobPollTimer = setTimeout(pollMeetingJobs, 5000);
+  }
+
+  window.addEventListener("pagehide", () => {
+    meetingJobPollStopped = true;
+    clearTimeout(meetingJobPollTimer);
+  });
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    meetingJobPollStopped = false;
+    clearTimeout(meetingJobPollTimer);
+    meetingJobPollTimer = null;
+    startMeetingJobPolling();
   });
 
   async function initializeWorkspace() {
@@ -3442,6 +3491,7 @@
     initializeLiveAssistantWidget();
     await loadWorkspace();
     syncStartAction();
+    startMeetingJobPolling();
 
     const url = new URL(window.location.href);
     if (!newMeetingRequested) return;

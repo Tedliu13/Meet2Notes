@@ -1178,6 +1178,17 @@ transcripts and AI notes. Other jobs for the same meeting must finish first. Spe
 and AI notes are run separately afterward. Deleted original media must be imported into a new
 meeting. Closing the browser does not cancel the queued job; application restarts can interrupt it.
 
+Faster Whisper reports separate model-loading, inference-slot waiting, audio-analysis
+(VAD/language detection), and first-segment decoding stages. These stages use an
+indeterminate progress indicator; decoding reports measurable progress once segments arrive.
+Activity logs include model-load, inference-slot wait, audio-analysis, and first-segment times.
+Meeting pages also read their job state every five seconds as a fallback when SSE updates
+are delayed. Running transcription jobs select their own transcript version, including after
+reload, so an older active version does not hide newly transcribed segments. Polling only
+reads existing jobs; it never starts or replays transcription.
+Cancellation while waiting for an inference slot releases the queued request without starting it;
+this does not forcibly interrupt native model loading or an active native inference call.
+
 ## License
 
 Meet2Notes is released under the [MIT License](LICENSE).

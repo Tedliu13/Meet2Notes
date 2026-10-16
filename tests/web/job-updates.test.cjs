@@ -24,6 +24,7 @@ function workspace() {
     subscribeJobs: callback => { state.notify = callback; },
     setTimeout: callback => { state.timers.push(callback); return state.timers.length; },
     clearTimeout() {}, console: { warn() {} },
+    window: { addEventListener() {} },
   };
   vm.createContext(state);
   vm.runInContext(source.slice(source.indexOf('  function rememberSpeakerJob('),
@@ -117,4 +118,55 @@ test('late queued POST response does not replace a completed SSE result', async 
   await request;
   assert.equal(state.meetingSummaries.length, 1);
   assert.equal(state.meetingSummaries[0].status, 'completed');
+});
+
+test('active transcription follows the running job instead of a previous active version', async () => {
+  const state = workspace();
+  await state.applyJobUpdates([job('new-transcription', 'transcribe', {
+    status: 'running', payload: { transcription_id: 72 }, message: 'Transcribed 81 segments',
+  })]);
+  assert.deepEqual(state.selected, [72]);
+});
+
+test('meeting polling refreshes progress without any SSE and schedules another read', async () => {
+  const state = workspace();
+  state.api = async url => {
+    state.requests.push(url);
+    return [job('new-transcription', 'transcribe', {
+      status: 'running', payload: { transcription_id: 72 },
+    })];
+  };
+  state.startMeetingJobPolling();
+  state.startMeetingJobPolling();
+  assert.equal(state.timers.length, 1);
+  await state.timers[0]();
+  assert.deepEqual(state.requests, ['/api/jobs?meeting_id=38']);
+  assert.deepEqual(state.selected, [72]);
+  assert.equal(state.timers.length, 2);
+});
+
+test('a newer SSE snapshot supersedes a delayed polling response', async () => {
+  const state = workspace();
+  let release;
+  state.api = () => new Promise(resolve => { release = resolve; });
+  const polling = state.pollMeetingJobs();
+  state.notify([job('new', 'transcribe', { status: 'running', payload: { transcription_id: 72 } })]);
+  await new Promise(resolve => setImmediate(resolve));
+  release([job('old', 'transcribe', { status: 'running', payload: { transcription_id: 38 } })]);
+  await polling;
+  assert.deepEqual(state.selected, [72]);
+});
+
+test('polling failures retry and navigation prevents a delayed response from changing the page', async () => {
+  const state = workspace();
+  state.api = async () => { throw Error('offline'); };
+  await state.pollMeetingJobs();
+  assert.equal(state.timers.length, 1);
+  let release;
+  state.api = () => new Promise(resolve => { release = resolve; });
+  const polling = state.pollMeetingJobs();
+  state.meetingId = '99';
+  release([job('old', 'transcribe', { status: 'running', payload: { transcription_id: 38 } })]);
+  await polling;
+  assert.deepEqual(state.selected, []);
 });
