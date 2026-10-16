@@ -92,6 +92,6 @@ logging.getLogger('asyncio').warning('Meet2Notes LiteLLM logging smoke test')
 print('LiteLLM initialization and logging passed: ' + version('litellm'), flush=True)
 PY
 EXPOSE 8765
-HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
-    CMD python -c "import json,urllib.request; r=json.load(urllib.request.urlopen('http://127.0.0.1:8765/api/health',timeout=4)); raise SystemExit(r['status'] != 'ok')"
+HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=5 \
+    CMD python -c "import json,urllib.request; r=json.load(urllib.request.urlopen('http://127.0.0.1:8765/api/health/live',timeout=10)); raise SystemExit(r['status'] != 'ok')"
 CMD ["meet2notes", "--host", "0.0.0.0", "--port", "8765", "--no-browser"]

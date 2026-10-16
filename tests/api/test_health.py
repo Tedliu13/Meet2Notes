@@ -5,6 +5,43 @@ from fastapi.testclient import TestClient
 from local_meeting_ai import __version__
 
 
+def test_liveness_does_not_read_sqlite_or_inspect_models(client, monkeypatch):
+    def unavailable():
+        raise AssertionError("Liveness must not access the database")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(client.app.state.container.database, "read", unavailable)
+        response = client.get("/api/health/live")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert set(response.json()) == {"status", "version"}
+
+
+def test_liveness_rejects_shutdown_and_not_ready_state(client):
+    client.app.state.services_ready = False
+    assert client.get("/api/health/live").status_code == 503
+    client.app.state.services_ready = True
+    client.app.state.shutdown_requested = True
+    assert client.get("/api/health/live").status_code == 503
+    client.app.state.shutdown_requested = False
+    assert client.get("/api/health/live").status_code == 200
+
+
+def test_database_diagnostics_are_separate_from_liveness(client, monkeypatch):
+    import sqlite3
+
+    def unavailable():
+        raise sqlite3.OperationalError("busy database")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(client.app.state.container.database, "read", unavailable)
+        diagnostic = client.get("/api/health").json()
+        live = client.get("/api/health/live")
+    assert diagnostic["status"] == "degraded"
+    assert diagnostic["database"] == "error"
+    assert live.status_code == 200
+
+
 def test_health_and_capabilities_are_explicit(client: TestClient) -> None:
     health = client.get("/api/health")
     assert health.status_code == 200

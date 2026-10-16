@@ -1,6 +1,7 @@
 """Use the same saved voice identities for separate and integrated diarization."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,7 @@ async def match_saved_speakers(
     is_cancelled: CancellationCheck,
 ) -> dict[int, Any]:
     enabled = bool(config.get("recognize_saved_speakers", True))
-    saved = profiles.list() if profiles is not None and enabled else []
+    saved = await asyncio.to_thread(profiles.list) if profiles is not None and enabled else []
     usable = [profile for profile in saved if profile.sample_path]
     reason = (
         "recognition_disabled" if not enabled else

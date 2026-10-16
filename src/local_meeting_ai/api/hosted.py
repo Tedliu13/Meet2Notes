@@ -24,7 +24,7 @@ class HostedMiddleware:
             return
         path = scope["path"]
         headers = dict(scope["headers"])
-        if path == "/api/health" and scope["method"] in {"GET", "HEAD"}:
+        if path in {"/api/health", "/api/health/live"} and scope["method"] in {"GET", "HEAD"}:
             await self.app(scope, receive, send)
             return
         try:

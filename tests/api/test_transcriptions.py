@@ -7,6 +7,7 @@ import threading
 import time
 import wave
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -506,3 +507,51 @@ def test_existing_voice_is_loaded_and_applied_to_a_later_meeting(
                        for segment in detail["segments"]) == 1
         else:
             assert calls == []
+
+
+@pytest.mark.parametrize("integrated", [True, False])
+def test_liveness_responds_while_speaker_assignment_waits(tmp_path, monkeypatch, integrated):
+    entered, release = threading.Event(), threading.Event()
+    engine = CompositeTranscriptionEngine() if integrated else FakeTranscriptionEngine()
+    with _client(tmp_path, engine) as client:
+        container = client.app.state.container
+        original_assignment = container.transcriptions.assign_diarization
+
+        def blocked_assignment(**kwargs):
+            entered.set()
+            if not release.wait(10):
+                raise RuntimeError("Test assignment was not released")
+            return original_assignment(**kwargs)
+
+        monkeypatch.setattr(container.transcriptions, "assign_diarization", blocked_assignment)
+        meeting = client.post("/api/meetings", json={"title": "Busy assignment"}).json()
+        client.post(f"/api/meetings/{meeting['id']}/import",
+                    files={"file": ("meeting.wav", _wav_bytes(), "audio/wav")})
+        started = client.post(f"/api/meetings/{meeting['id']}/transcriptions",
+                              json={"profile_id": "balanced", "language": "en"}).json()
+        job_uuid = started["job"]["uuid"]
+        original_engine = container.diarization_service.engine
+        try:
+            if not integrated:
+                assert _wait_for_job(client, job_uuid)["status"] == "completed"
+                container.diarization_service.engine = SimpleNamespace(
+                    capability=lambda: {"available": True, "installed": True},
+                    diarize=AsyncMock(return_value=[DiarizationSegment(0, 2800, 0)]),
+                )
+                response = client.post(
+                    f"/api/transcriptions/{started['transcription']['id']}/diarize", json={},
+                )
+                assert response.status_code == 202
+                job_uuid = response.json()["uuid"]
+            assert entered.wait(2)
+            with ThreadPoolExecutor(max_workers=1) as requests:
+                try:
+                    response = requests.submit(client.get, "/api/health/live").result(timeout=2)
+                    assert response.status_code == 200
+                    assert not release.is_set()
+                finally:
+                    release.set()
+            assert _wait_for_job(client, job_uuid)["status"] == "completed"
+        finally:
+            release.set()
+            container.diarization_service.engine = original_engine

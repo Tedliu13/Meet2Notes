@@ -32,6 +32,10 @@ def hosted_client(settings: AppSettings):
 
 def test_authentication_and_host_validation(hosted_client):
     assert hosted_client.get("/api/health").status_code == 200
+    assert hosted_client.get("/api/health/live").status_code == 200
+    bad_host = hosted_client.get("/api/health/live", headers={"Host": "evil.example"})
+    assert bad_host.status_code == 400
+    assert hosted_client.get("/api/health/live/extra").status_code == 401
     for path in ("/", "/api/meetings", "/api/settings", "/api/docs", "/static/js/app.js"):
         assert hosted_client.get(path).status_code == 401
     assert hosted_client.get("/", auth=("owner", "wrong")).status_code == 401

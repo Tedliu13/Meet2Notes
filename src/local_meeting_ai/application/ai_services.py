@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from copy import deepcopy
 from pathlib import Path
@@ -297,7 +298,8 @@ class DiarizationService:
         if is_cancelled():
             raise JobCancelledError("Diarization was cancelled")
         await context.update(0.94, "Assigning speakers to transcript segments")
-        assigned = self.transcriptions.assign_diarization(
+        assigned = await asyncio.to_thread(
+            self.transcriptions.assign_diarization,
             meeting_id=transcription.meeting_id,
             transcription_id=transcription.id,
             diarization=turns,

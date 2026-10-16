@@ -475,7 +475,8 @@ class TranscriptionService:
                     is_cancelled=is_cancelled,
                 )
                 await context.raise_if_cancelled()
-                assigned_segments = self.transcriptions.assign_diarization(
+                assigned_segments = await asyncio.to_thread(
+                    self.transcriptions.assign_diarization,
                     meeting_id=completed.meeting_id,
                     transcription_id=transcription_id,
                     diarization=result.speaker_turns,

@@ -38,6 +38,11 @@ downloaded after deployment into a separate persistent volume. Hosted mode uses
 four job workers, disables native recording/live transcription and the live
 assistant, and retains imported-media processing and post-meeting features.
 The deployment starts as a single private workspace, not a multi-tenant service.
+Docker checks `/api/health/live`, a lightweight asynchronous endpoint without
+database or inference dependencies. `/api/health` retains database diagnostics.
+Speaker assignment and saved-profile reads run off the HTTP event loop. The
+probe tolerates five failures with a 15-second command timeout; persistent
+failures consequently take longer to mark unhealthy. Rebuild/redeploy to apply.
 `M2N_SECRETS_KEY` must be a generated Fernet key, including its trailing `=`,
 not a password. For restart loops caused by `Incorrect padding`, follow the key
 setup and recovery instructions in [COOLIFY_DEPLOYMENT.md](COOLIFY_DEPLOYMENT.md).

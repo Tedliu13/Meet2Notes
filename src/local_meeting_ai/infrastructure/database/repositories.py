@@ -1186,6 +1186,21 @@ class TranscriptionRepository:
             )
         return replacements
 
+    @staticmethod
+    def _speaker_for_span(
+        start_ms: int, end_ms: int, diarization: Sequence[DiarizationSegment],
+        minimum_overlap_ratio: float,
+    ) -> int | None:
+        duration = max(1, end_ms - start_ms)
+        overlaps: dict[int, int] = {}
+        for turn in diarization:
+            overlap = max(0, min(end_ms, turn.end_ms) - max(start_ms, turn.start_ms))
+            overlaps[turn.speaker] = overlaps.get(turn.speaker, 0) + overlap
+        if not overlaps:
+            return None
+        speaker, overlap = max(overlaps.items(), key=lambda item: item[1])
+        return speaker if overlap / duration >= minimum_overlap_ratio else None
+
     def assign_diarization(
         self,
         *,
@@ -1196,6 +1211,18 @@ class TranscriptionRepository:
         recognized_profiles: dict[int, SpeakerProfile] | None = None,
     ) -> int:
         speaker_numbers = sorted({item.speaker for item in diarization})
+        segment_query = (
+            "SELECT id, start_ms, end_ms FROM transcript_segments WHERE transcription_id = ?"
+        )
+        with self.database.read() as connection:
+            snapshot = connection.execute(segment_query, (transcription_id,)).fetchall()
+        # The potentially quadratic overlap calculation must not hold SQLite's
+        # writer lock: unrelated jobs still need to persist progress meanwhile.
+        predicted = {
+            (int(row["id"]), int(row["start_ms"]), int(row["end_ms"])): self._speaker_for_span(
+                int(row["start_ms"]), int(row["end_ms"]), diarization, minimum_overlap_ratio,
+            ) for row in snapshot
+        }
         with self.database.transaction() as connection:
             existing_speakers = {
                 str(row["stable_key"]): row
@@ -1273,28 +1300,16 @@ class TranscriptionRepository:
                 ],
             )
 
-            rows = connection.execute(
-                """
-                SELECT id, start_ms, end_ms FROM transcript_segments
-                WHERE transcription_id = ?
-                """,
-                (transcription_id,),
-            ).fetchall()
+            rows = connection.execute(segment_query, (transcription_id,)).fetchall()
             assignments: list[tuple[int, int]] = []
             for row in rows:
-                duration = max(1, int(row["end_ms"]) - int(row["start_ms"]))
-                overlaps: dict[int, int] = {}
-                for turn in diarization:
-                    overlap = max(
-                        0,
-                        min(int(row["end_ms"]), turn.end_ms)
-                        - max(int(row["start_ms"]), turn.start_ms),
-                    )
-                    overlaps[turn.speaker] = overlaps.get(turn.speaker, 0) + overlap
-                if not overlaps:
-                    continue
-                speaker, overlap = max(overlaps.items(), key=lambda item: item[1])
-                if overlap / duration >= minimum_overlap_ratio:
+                key = (int(row["id"]), int(row["start_ms"]), int(row["end_ms"]))
+                # Recompute only new or edited spans under the transaction so
+                # concurrent transcript edits cannot receive stale assignments.
+                speaker = predicted[key] if key in predicted else self._speaker_for_span(
+                    key[1], key[2], diarization, minimum_overlap_ratio,
+                )
+                if speaker is not None:
                     assignments.append((speaker_ids[speaker], int(row["id"])))
             connection.executemany(
                 "UPDATE transcript_segments SET speaker_id = ? WHERE id = ?",

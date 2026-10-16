@@ -135,6 +135,7 @@ def create_app(
             # prints its ready line. This makes the console truthful: ready
             # means the chosen local models have completed their startup load.
             await preload_engines()
+            lifespan_app.state.services_ready = True
             logger.info(
                 "Meet2Notes is ready at http://%s:%d",
                 resolved_settings.host,
@@ -142,6 +143,7 @@ def create_app(
             )
             yield
         finally:
+            lifespan_app.state.services_ready = False
             logger.info("Stopping Meet2Notes services")
             await container.capture_service.shutdown()
             await container.live_assistant_service.shutdown()
@@ -172,6 +174,17 @@ def create_app(
     app.state.background_tasks = set()
     app.state.request_shutdown = None
     app.state.shutdown_requested = False
+    app.state.services_ready = False
+
+    @app.get("/api/health/live", include_in_schema=False)
+    async def liveness() -> JSONResponse:
+        # No sync dependency, thread-pool work, model inspection or DB access:
+        # a busy inference/persistence worker must not remove the web route.
+        ready = app.state.services_ready and not app.state.shutdown_requested
+        return JSONResponse(
+            {"status": "ok" if ready else "unavailable", "version": __version__},
+            status_code=200 if ready else 503,
+        )
 
     allowed_hosts = ["127.0.0.1", "localhost", "testserver", resolved_settings.host]
     allowed_hosts.extend(

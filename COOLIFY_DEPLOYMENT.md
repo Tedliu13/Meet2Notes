@@ -9,7 +9,7 @@
 2. Build Pack 選 **Docker Compose**，Base Directory `/`，Compose Location `/docker-compose.yaml`。
 3. 載入 Compose 後，meet2notes service 的 Domain 設為 `https://meet2notes.ncdrcc.com:8765`；`:8765` 指容器內部路由 port，使用者仍開啟不帶 port 的正式 HTTPS 網址。
 4. 填入下表三個必要 secrets（runtime variables），確認 storage、資源限制及 health check 後由管理者部署。
-5. 瀏覽器會顯示 HTTP Basic 登入視窗。所有頁面、API、靜態資源均需登入，只有 `/api/health` 公開。
+5. 瀏覽器會顯示 HTTP Basic 登入視窗。頁面、業務 API、靜態資源均需登入；`/api/health` 與僅回報存活狀態／版本的 `/api/health/live` 公開。
 
 這是個人、單一 workspace 的部署；共用帳密者可以存取全部會議及設定。正式導入多人使用前，需另行設計帳號、角色、資料歸屬與隔離，不能把 Basic Auth 視為多租戶支援。
 
@@ -64,7 +64,21 @@ Coolify 的 Environment Variables 中，本專案的 `M2N_*` 設定只供 runtim
 - Build：`docker compose build meet2notes`（首次需下載大型 CPU 執行套件，llama.cpp 可能編譯，時間較長）。
 - Start：image CMD `meet2notes --host 0.0.0.0 --port 8765 --no-browser`。
 - 內部 port：`8765`，由 Coolify 既有 Traefik 提供 HTTPS。
-- Health：GET `/api/health`，確認 `status=ok`；30 秒檢查、5 秒 timeout、120 秒 startup grace、3 次失敗。
+- Health：Docker GET `/api/health/live`，確認 `status=ok`；30 秒檢查、HTTP timeout 10 秒、Docker timeout 15 秒、120 秒 startup grace、連續 5 次失敗才 unhealthy。`/api/health` 保留 SQLite 診斷，不作 Docker 路由健康探測。
+
+本機推論期間短暫 degraded 後無法開啟網站，可能是健康檢查逾時導致 Traefik 暫停路由，並不等於容器已重啟。[Coolify 健康檢查說明](https://coolify.io/docs/applications/configuration/health-checks)。本專案為 Compose 部署，沿用 Dockerfile 的 `HEALTHCHECK`；標準應用 Healthcheck 頁面不管理 Compose 的探測。須 rebuild 並重新部署，確認實際容器探測改為 `/api/health/live`。若另外自訂 Compose healthcheck，請同步修改該定義，不修改主機 Traefik 或停用健康檢查。
+
+輕量端點不使用同步 dependency、SQLite、模型檢查或背景工作狀態；啟動預載完成後才回 200，啟動未完成／正在停止時回 503。原 `/api/health` 仍回報 database 狀態；存活端點成功不代表資料庫與每個業務 API 都正常，管理者應另外監看完整診斷。Docker timeout 與 retries 放寬會延後持續故障的判定。
+
+講者分配與聲紋清單讀取移到背景執行緒，耗時的逐字稿／講者區間重疊計算移出 SQLite 寫入交易；提交時重新核對片段時間，避免同時編輯造成舊的講者分配。仍保留四個工作 workers 及既有 SQLite 交易規則，無新環境變數或 migration。此修改降低應用自身造成的 HTTP 阻塞，不保證 VM CPU／磁碟耗盡、native library 長時間持有 GIL 或真實 deadlock 時仍可回應。先維持 `M2N_CPU_THREADS=2`，並核對 Settings 中 Sherpa 的 threads；已保存的引擎設定可能另有指定。不要為此把共用 VM 的全部 CPU 分配給推論。
+
+部署後可在應用容器 Terminal 檢查輕量端點（不需登入金鑰）：
+
+```sh
+python -c "import json,urllib.request; print(json.load(urllib.request.urlopen('http://127.0.0.1:8765/api/health/live',timeout=10)))"
+```
+
+再以代表性長會議與正常並行量，確認辨識期間輕量端點、登入及會議頁可回應，並另查 `/api/health` 資料庫診斷。若仍 unhealthy，保留實際 healthcheck 的 timeout／錯誤輸出與同時段 CPU、記憶體、應用 log；勿僅繼續加大 timeout。持久化 volumes 與備份／還原流程均不變。
 - Docker base 固定 `python:3.12.12-slim-bookworm`；Torch 安裝 CPU wheels。image 包含 FFmpeg 及各引擎執行依賴，不包含模型權重。
 - Faster Whisper 的 transcription extra 限制 `av>=11,<19`：PyAV 19 移除 `av.open(metadata_errors=...)`，會造成音訊解碼時 `open() got an unexpected keyword argument 'metadata_errors'`。遇到此錯誤須部署包含此相依限制的新 commit，重新 build image；僅重啟舊 image 無效。更新後重新執行失敗會議的處理工作，保留 data／models volumes 與原加密 key，無須重新下載模型。參考：[PyAV 19 release notes](https://github.com/PyAV-Org/PyAV/releases/tag/v19.0.0)。
 - `.dockerignore` 採 build context 允許清單，排除本機模型、資料、secrets、虛擬環境。
