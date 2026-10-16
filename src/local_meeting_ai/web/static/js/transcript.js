@@ -358,6 +358,7 @@
   async function refreshMeetingTags() {
     const bar = document.querySelector("#transcription-tags");
     bar.classList.toggle("hidden", !meetingId);
+    document.querySelector("#edit-meeting-tags").classList.toggle("hidden", !meetingId);
     if (!meetingId) return;
     try {
       const tags = await api(`/api/meetings/${meetingId}/tags`);
@@ -2548,6 +2549,8 @@
   }
 
   function renderProgress(job) {
+    activeJob = job;
+    syncRetranscribeAction();
     const card = document.querySelector("#transcription-progress");
     if (!job || !["queued", "running", "paused"].includes(job.status)) {
       card.classList.add("hidden");
@@ -2590,6 +2593,42 @@
     document.querySelectorAll("[data-empty-start]").forEach((button) => {
       button.classList.toggle("hidden", !startActionAvailable);
     });
+  }
+
+  let retranscribePending = false;
+
+  function syncRetranscribeAction() {
+    const button = document.querySelector("#retranscribe");
+    if (!button) return;
+    const available = Boolean(meetingId) && !audioWasDeleted() &&
+      recordings.some((recording) => recording.role === "original");
+    button.classList.toggle("hidden", !available);
+    button.disabled = retranscribePending || Boolean(activeJob &&
+      ["queued", "running", "paused"].includes(activeJob.status));
+  }
+
+  async function retranscribeMeeting() {
+    if (!meetingId || retranscribePending ||
+        (hosted && document.body.dataset.canManage !== "true")) return;
+    if (!window.confirm(t("transcript.retry_confirm"))) return;
+    retranscribePending = true;
+    syncRetranscribeAction();
+    let started = false;
+    try {
+      const result = await api(`/api/meetings/${meetingId}/retranscribe`, { method: "POST" });
+      started = true;
+      activeJob = result.job;
+      activeTranscriptionId = result.transcription.id;
+      versions = [result.transcription, ...versions];
+      renderProgress(activeJob);
+      toast(t("transcript.retry_started"));
+      await selectTranscription(activeTranscriptionId, { throwOnError: true });
+    } catch (error) {
+      toast(started ? t("transcript.retry_refresh_failed") : error.message, "error");
+    } finally {
+      retranscribePending = false;
+      syncRetranscribeAction();
+    }
   }
 
   function applySearch() {
@@ -2784,6 +2823,7 @@
   });
 
   document.querySelector("#start-transcription").addEventListener("click", openStartDialog);
+  document.querySelector("#retranscribe").addEventListener("click", retranscribeMeeting);
   document.querySelector("#refresh-sources").addEventListener("click", refreshSources);
   document.querySelectorAll('input[name="source-mode"]').forEach((input) =>
     input.addEventListener("change", () => {

@@ -395,6 +395,83 @@ def test_meeting_audio_can_be_deleted_without_removing_transcript(tmp_path: Path
         assert "Audio deleted" in client.get("/meetings").text
 
 
+def test_retranscribe_retains_versions_and_reuses_original(tmp_path: Path) -> None:
+    with _client(tmp_path) as client:
+        client.app.state.container.import_service.media_probe.probe_media = AsyncMock(
+            return_value=MediaProbe(
+                format_name="wav", duration_ms=100, size_bytes=100,
+                sample_rate=16000, channels=1, has_audio=True, has_video=False, metadata={},
+            )
+        )
+        meeting_id = client.post("/api/meetings", json={"title": "Retry"}).json()["id"]
+        imported = client.post(
+            f"/api/meetings/{meeting_id}/import",
+            files={"file": ("review.wav", _wav_bytes(), "audio/wav")},
+        ).json()
+        assert _wait_for_job(client, imported["job"]["uuid"])["status"] == "completed"
+        service = client.app.state.container.transcription_service
+        service.preferences.update({"final_transcription_profile": "balanced"})
+        first = client.post(f"/api/meetings/{meeting_id}/retranscribe")
+        assert first.status_code == 202, first.text
+        first_data = first.json()
+        assert first_data["transcription"]["title"] == "Retry"
+        assert _wait_for_job(client, first_data["job"]["uuid"])["status"] == "completed"
+        first_id = first_data["transcription"]["id"]
+        before = client.get(f"/api/transcriptions/{first_id}").json()["segments"]
+        second = client.post(f"/api/meetings/{meeting_id}/retranscribe")
+        assert second.status_code == 202, second.text
+        second_data = second.json()
+        assert second_data["transcription"]["id"] != first_id
+        assert second_data["job"]["payload"]["recording_id"] == imported["recording"]["id"]
+        assert second_data["job"]["payload"]["postprocess"] is False
+        assert second_data["job"]["payload"]["allow_model_download"] is False
+        assert _wait_for_job(client, second_data["job"]["uuid"])["status"] == "completed"
+        assert client.get(f"/api/transcriptions/{first_id}").json()["segments"] == before
+        assert len(client.get(f"/api/meetings/{meeting_id}/transcriptions").json()) == 2
+        # A stale transcription status after deployment is not an active queue job.
+        service.transcriptions.set_status(second_data["transcription"]["id"], "running")
+        service.queue.submit = AsyncMock()
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            responses = list(executor.map(
+                lambda _: client.post(f"/api/meetings/{meeting_id}/retranscribe"), range(2)
+            ))
+        assert sorted(response.status_code for response in responses) == [202, 422]
+        service.queue.submit.assert_awaited_once()
+        assert len(client.get(f"/api/meetings/{meeting_id}/transcriptions").json()) == 3
+
+
+def test_retranscribe_rejects_deleted_original_file(tmp_path: Path) -> None:
+    with _client(tmp_path) as client:
+        meeting_id = client.post("/api/meetings", json={"title": "Retry"}).json()["id"]
+        imported = client.post(
+            f"/api/meetings/{meeting_id}/import",
+            files={"file": ("review.wav", _wav_bytes(), "audio/wav")},
+        ).json()
+        _wait_for_job(client, imported["job"]["uuid"])
+        service = client.app.state.container.transcription_service
+        original = service.recordings.latest_for_role(meeting_id, "original")
+        assert original
+        Path(original.local_path).unlink()
+        response = client.post(f"/api/meetings/{meeting_id}/retranscribe")
+        assert response.status_code == 422
+        assert "original media is unavailable" in response.text
+        assert client.get(f"/api/meetings/{meeting_id}/transcriptions").json() == []
+
+
+def test_retranscribe_rejects_active_jobs_and_missing_media(tmp_path: Path) -> None:
+    from local_meeting_ai.domain.enums import JobType
+
+    with _client(tmp_path) as client:
+        meeting_id = client.post("/api/meetings", json={"title": "Retry"}).json()["id"]
+        assert client.post(f"/api/meetings/{meeting_id}/retranscribe").status_code == 422
+        service = client.app.state.container.transcription_service
+        service.jobs.create(meeting_id=meeting_id, job_type=JobType.DIARIZE, payload={})
+        response = client.post(f"/api/meetings/{meeting_id}/retranscribe")
+        assert response.status_code == 422
+        assert "active jobs" in response.text
+        assert client.get(f"/api/meetings/{meeting_id}/transcriptions").json() == []
+
+
 def test_model_download_requires_explicit_confirmation(tmp_path: Path) -> None:
     with _client(tmp_path) as client:
         meeting = client.post("/api/meetings", json={"title": "Download consent"}).json()

@@ -56,8 +56,8 @@ active account, preserve other co-managers, and remove a duplicate co-manager
 entry for the new creator. The former creator loses edit/share permissions unless
 they remain an administrator or explicitly assigned co-manager. This uses existing
 account tables; no new migration, model download or environment variable is needed.
-Meeting names, creator/co-manager labels and management actions share a compact
-header row, wrapping only when space is limited. This also applies after library
+Meeting names, tags, creator/co-manager labels and management actions share a compact
+header row in that order, wrapping only when space is limited. This also applies after library
 searches and pagination refresh the results.
 
 New meetings can also specify **Known speakers** in the final-processing dialog
@@ -1165,6 +1165,13 @@ Start with the [documentation index](docs/README.md). Read
 | llama.cpp acceleration | CUDA or CPU | Metal or CPU | CUDA or CPU |
 
 \* Availability depends on the source exposed by the operating system.
+
+Existing meetings offer **Retranscribe** in the transcription page header for administrators,
+creators and co-managers (desktop mode remains unrestricted). It reuses the original audio/video
+and current default final transcription settings to create a new version, retaining earlier
+transcripts and AI notes. Other jobs for the same meeting must finish first. Speaker diarization
+and AI notes are run separately afterward. Deleted original media must be imported into a new
+meeting. Closing the browser does not cancel the queued job; application restarts can interrupt it.
 
 ## License
 

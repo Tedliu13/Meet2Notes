@@ -1,4 +1,8 @@
 {
+  "transcript.retry": "Volver a transcribir",
+  "transcript.retry_confirm": "¿Volver a transcribir el archivo original con la configuración predeterminada actual? Se creará una nueva versión y se conservarán las transcripciones y notas existentes. La identificación de hablantes y las notas de IA no se ejecutarán automáticamente. Espere a que terminen los trabajos activos.",
+  "transcript.retry_started": "Transcripción en cola. Puede salir de esta página; el procesamiento continuará en segundo plano.",
+  "transcript.retry_refresh_failed": "La transcripción comenzó, pero la página no pudo actualizarse. Recargue para ver el progreso; no vuelva a enviarla.",
   "known_speakers.title": "Hablantes conocidos",
   "known_speakers.help": "Selecciona voces guardadas previstas en esta reunión. Solo se compararán las seleccionadas; las voces inciertas seguirán sin identificar. Deja vacío para comparar todas las voces guardadas.",
   "known_speakers.loading": "Cargando voces guardadas…",
@@ -117,6 +121,7 @@
   "mcp.status_enabled": "Activado · los clientes de escritorio pueden usar las herramientas de solo lectura de Meet2Notes mientras la aplicación esté ejecutándose.",
   "mcp.title": "Clientes MCP de escritorio",
   "literal": {
+    "Retranscribe": "Volver a transcribir",
     "Known speakers": "Hablantes conocidos",
     "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.": "Selecciona voces guardadas previstas en esta reunión. Solo se compararán las seleccionadas; las voces inciertas seguirán sin identificar. Deja vacío para comparar todas las voces guardadas.",
     "Reload saved voices": "Recargar voces guardadas",

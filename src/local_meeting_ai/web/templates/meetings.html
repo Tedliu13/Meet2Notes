@@ -50,11 +50,12 @@
       {% for meeting in meetings %}
       <article class="library-result"><header><div>
         <div class="meeting-title-line"><h3><a href="/?meeting={{ meeting.id }}">{{ meeting.title }}</a></h3>
+        <div class="meeting-tags">{% for tag in meeting.tags %}<span class="meeting-tag">{{ tag.name }}</span>{% endfor %}</div>
         {% if hosted %}<div class="meeting-people">{% if meeting.creator %}<span class="person-label">建立者：{{ meeting.creator.name }}</span>{% endif %}{% for person in meeting.managers %}<span class="person-label">共同管理：{{ person.name }}</span>{% endfor %}</div>{% endif %}
         {% if hosted %}<div class="meeting-people">{% if meeting.can_transfer %}<a class="text-button" href="/?meeting={{ meeting.id }}&amp;manage=creator">修改建立者</a>{% endif %}{% if meeting.can_share %}<a class="text-button" href="/?meeting={{ meeting.id }}&amp;manage=managers">修改共同管理者</a>{% endif %}</div>{% endif %}
         </div>
         <small data-local-time="{{ meeting.meeting_date }}">{{ meeting.meeting_date[:16] }}{% if meeting.audio_deleted_at %} · Audio deleted{% endif %}</small>
-      </div></header><div class="meeting-tags">{% for tag in meeting.tags %}<span class="meeting-tag">{{ tag.name }}</span>{% endfor %}</div></article>
+      </div></header></article>
       {% else %}<p class="library-message">No saved meetings yet</p>{% endfor %}
     </div>
     <nav class="library-pagination" aria-label="Library pages"><button type="button" class="button secondary" id="library-prev">Previous</button><span id="library-page"></span><button type="button" class="button secondary" id="library-next">Next</button></nav>

@@ -1,4 +1,8 @@
 {
+  "transcript.retry": "重新轉錄",
+  "transcript.retry_confirm": "使用目前預設的轉錄設定，重新轉錄原始音訊或影片？將建立新版本，保留既有逐字稿與 AI 筆記，不會自動執行講者辨識及 AI 筆記。請先等待此會議的其他工作結束。",
+  "transcript.retry_started": "已排入重新轉錄工作。離開頁面後，仍會在背景繼續處理。",
+  "transcript.retry_refresh_failed": "重新轉錄已啟動，但畫面更新失敗。請重新整理查看進度，勿再次送出。",
   "known_speakers.title": "已知講者名單",
   "known_speakers.help": "勾選預期參與的已儲存聲紋人物。辨識時僅比對勾選名單，無法確認的聲音保留為未識別講者；不勾選則比對全部已儲存聲紋。",
   "known_speakers.loading": "正在載入已儲存聲紋…",
@@ -117,6 +121,7 @@
   "mcp.status_enabled": "已啟用 · 應用程式運作時，桌面用戶端可使用唯讀 Meet2Notes 工具。",
   "mcp.title": "MCP 桌面用戶端",
   "literal": {
+    "Retranscribe": "重新轉錄",
     "Known speakers": "已知講者名單",
     "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.": "勾選預期參與的已儲存聲紋人物。辨識時僅比對勾選名單，無法確認的聲音保留為未識別講者；不勾選則比對全部已儲存聲紋。",
     "Reload saved voices": "重新載入聲紋名單",

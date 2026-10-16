@@ -79,6 +79,32 @@ class TranscriptionService:
         self.queue = queue
         self.speaker_profiles = speaker_profiles
         self.profile_matcher = profile_matcher
+        self._retranscribe_lock = asyncio.Lock()
+
+    async def retranscribe(self, meeting_id: int) -> tuple[Transcription, Job]:
+        """Retry from the original media without modifying earlier versions."""
+        async with self._retranscribe_lock:
+            meeting = self.meetings.get(meeting_id)
+            if not meeting:
+                raise NotFoundError("Meeting not found")
+            if self.jobs.list(meeting_id=meeting_id, active_only=True, limit=1):
+                raise ValidationError(
+                    "Wait for this meeting's active jobs to finish before retranscribing"
+                )
+            original = self.recordings.latest_for_role(meeting_id, "original")
+            if meeting.audio_deleted_at or not original or not Path(original.local_path).is_file():
+                raise ValidationError(
+                    "The original media is unavailable. Import the file into a new meeting"
+                )
+            return await self.start(
+                meeting_id,
+                title=meeting.title,
+                profile_id="default",
+                language=None,
+                task=None,
+                allow_model_download=False,
+                postprocess=False,
+            )
 
     def capability(self) -> dict[str, Any]:
         return self.engine.capability()

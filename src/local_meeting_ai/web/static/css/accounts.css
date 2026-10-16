@@ -14,12 +14,18 @@
 .meeting-title-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 4px; min-width: 0; }
 .library-result .meeting-title-line h3 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .meeting-title-line > .meeting-people { display: contents; }
+.meeting-title-line > .meeting-tags { display: contents; }
 .meeting-title-line .text-button { white-space: nowrap; }
 .library-result header > div:first-child { flex: 1; min-width: 0; }
 .meeting-heading-group { display: flex; flex: 1; flex-wrap: wrap; align-items: flex-start; gap: 4px 12px; min-width: 0; }
 .meeting-heading-group .transcription-name-control { max-width: min(540px, 100%); }
 .meeting-heading-group .transcription-title-display { width: auto; max-width: 100%; }
 .meeting-heading-group .meeting-people { margin: 4px 0 0; }
+.meeting-heading-group > .transcription-tag-bar { display: contents; padding: 0; }
+.meeting-heading-group .meeting-tags { display: contents; }
+.meeting-heading-group .meeting-tag { margin-top: 4px; max-width: 100%; overflow-wrap: anywhere; }
+.meeting-heading-group #edit-meeting-tags { margin-top: 4px; }
+.meeting-title-line .meeting-tag { max-width: 100%; overflow-wrap: anywhere; }
 .meeting-heading-group .text-button { white-space: nowrap; }
 .meeting-heading-group .person-label, .meeting-title-line .person-label { max-width: 100%; overflow-wrap: anywhere; }
 .user-list { display: grid; gap: 12px; }

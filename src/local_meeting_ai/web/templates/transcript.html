@@ -52,9 +52,12 @@
         </span>
       </div>
 
+      <div class="transcription-tag-bar hidden" id="transcription-tags"><div class="meeting-tags" id="current-meeting-tags"></div></div>
       <div id="meeting-people" class="meeting-people" aria-live="polite"></div>
+      <button type="button" class="text-button hidden" data-meeting-write id="edit-meeting-tags">Edit tags</button>
       </div>
       <div class="transcription-primary-actions">
+        <button type="button" class="button secondary hidden" id="retranscribe" data-meeting-write data-i18n="transcript.retry">Retranscribe</button>
         <button type="button" class="button primary start-transcription-button {{ '' if request.query_params.get('new') == '1' else 'hidden' }}" id="start-transcription">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
           Start transcription
@@ -73,7 +76,6 @@
       </div>
     </header>
 
-    <div class="transcription-tag-bar hidden" id="transcription-tags"><div class="meeting-tags" id="current-meeting-tags"></div><button type="button" class="text-button" data-meeting-write id="edit-meeting-tags">Edit tags</button></div>
 
     <nav class="meeting-tabs hidden" id="meeting-tabs" role="tablist" aria-label="Meeting workspace">
       <button type="button" class="active" role="tab" aria-selected="true" aria-controls="meeting-tab-transcript" data-meeting-tab="transcript">

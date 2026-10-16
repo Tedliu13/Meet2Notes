@@ -1,4 +1,8 @@
 {
+  "transcript.retry": "Retranscribe",
+  "transcript.retry_confirm": "Retranscribe the original media using the current default transcription settings? A new version will be created; existing transcripts and AI notes will be retained. Speaker diarization and AI notes will not run automatically. Wait for any active jobs to finish first.",
+  "transcript.retry_started": "Retranscription queued. You can leave this page; processing continues in the background.",
+  "transcript.retry_refresh_failed": "Retranscription started, but the page could not refresh. Reload to see its progress; do not submit it again.",
   "known_speakers.title": "Known speakers",
   "known_speakers.help": "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.",
   "known_speakers.loading": "Loading saved voices…",
@@ -117,6 +121,7 @@
   "mcp.status_enabled": "Enabled · desktop clients can use the read-only Meet2Notes tools while this app is running.",
   "mcp.title": "MCP desktop clients",
   "literal": {
+    "Retranscribe": "Retranscribe",
     "Known speakers": "Known speakers",
     "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.": "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.",
     "Reload saved voices": "Reload saved voices",

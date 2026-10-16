@@ -149,6 +149,7 @@ def test_meeting_owner_managers_and_resource_alias_permissions(account_client):
         ("DELETE", f"/api/meetings/{mid}/audio", None),
         ("POST", f"/api/meetings/{mid}/import", None),
         ("POST", f"/api/meetings/{mid}/transcriptions", {}),
+        ("POST", f"/api/meetings/{mid}/retranscribe", {}),
         ("PATCH", f"/api/transcriptions/{tid}", {"title": "stolen"}),
         ("PATCH", f"/api/transcript-segments/{segment}", {"text": "stolen"}),
         ("PATCH", f"/api/speakers/{speaker}", {"display_name": "stolen"}),

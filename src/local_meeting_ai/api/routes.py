@@ -2138,6 +2138,22 @@ async def start_transcription(
     )
 
 
+@router.post(
+    "/meetings/{meeting_id}/retranscribe",
+    response_model=TranscriptionStartResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def retranscribe_meeting(
+    meeting_id: int,
+    container: ContainerDependency,
+) -> TranscriptionStartResponse:
+    transcription, job = await container.transcription_service.retranscribe(meeting_id)
+    return TranscriptionStartResponse(
+        transcription=TranscriptionResponse.model_validate(transcription),
+        job=JobResponse.model_validate(job),
+    )
+
+
 @router.get(
     "/meetings/{meeting_id}/transcriptions",
     response_model=list[TranscriptionResponse],

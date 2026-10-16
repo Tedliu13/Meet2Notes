@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const source = fs.readFileSync('src/local_meeting_ai/web/static/js/transcript.js', 'utf8');
 const state = () => {
   const nodes = new Map();
-  const context = { activeJob: null, t: key => key, document: {
+  const context = { activeJob: null, syncRetranscribeAction() {}, t: key => key, document: {
     querySelector(selector) {
       if (!nodes.has(selector)) nodes.set(selector, {
         value: 0, textContent: '', classList: { add() {}, remove() {} },
