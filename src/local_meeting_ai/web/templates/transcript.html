@@ -652,6 +652,13 @@
 {% include "_tags.html" %}
 
 {% if hosted %}
+<dialog class="modal compact-modal" id="meeting-creator-dialog" aria-labelledby="meeting-creator-title">
+  <div class="modal-panel"><h2 id="meeting-creator-title">修改建立者</h2>
+    <p>新建立者將取得會議管理與共同管理者指派權限。原建立者若非管理者或共同管理者，將只保留觀看及工具使用權限。</p>
+    <label class="field"><span>建立者</span><select id="meeting-creator-select" required></select></label>
+    <div class="modal-actions"><button type="button" class="button secondary" id="close-meeting-creator">取消</button><button type="button" class="button primary" id="save-meeting-creator">儲存</button></div>
+  </div>
+</dialog>
 <dialog class="modal compact-modal" id="meeting-managers-dialog" aria-labelledby="meeting-managers-title">
   <div class="modal-panel"><h2 id="meeting-managers-title">共同管理</h2><p>選取可修改逐字稿、執行講者辨識與 AI 筆記的使用者。</p>
     <div class="manager-options" id="meeting-manager-options"></div>

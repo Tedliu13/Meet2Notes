@@ -111,6 +111,8 @@ class HostedMiddleware:
         """Deny unknown writes by default; every resource alias resolves to its meeting."""
         if user["is_admin"]:
             return
+        if path.endswith("/creator") and method not in {"GET", "HEAD", "OPTIONS"}:
+            raise HTTPException(403, "只有管理者可修改會議建立者")
         if path != "/api/users/directory" and (
             path == "/settings"
             or path.startswith(

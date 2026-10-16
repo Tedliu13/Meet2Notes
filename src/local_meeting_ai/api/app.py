@@ -298,10 +298,16 @@ def _register_web_routes(app: FastAPI, templates: Jinja2Templates, container: Co
                 requested_id = int(requested_meeting)
             except ValueError:
                 requested_id = 0
-            selected_meeting = next(
-                (meeting for meeting in meetings if meeting.id == requested_id),
-                None,
-            )
+            # A management link may point beyond the first page of the library.
+            # Never silently select a different meeting for an explicit id.
+            selected_meeting = container.meetings.get(requested_id)
+            if selected_meeting is None:
+                return templates.TemplateResponse(
+                    request=request,
+                    name="not_found.html",
+                    context={"version": __version__, "page": "meetings"},
+                    status_code=404,
+                )
         if selected_meeting is None and meetings and not new_meeting:
             selected_meeting = meetings[0]
         return templates.TemplateResponse(

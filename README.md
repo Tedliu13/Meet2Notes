@@ -50,6 +50,13 @@ speakers, generate/edit AI notes and cancel its jobs. Only administrators and th
 creator can change co-managers. Creator/co-manager name labels appear alongside
 meeting names. This remains a shared library, not private tenant isolation.
 
+Each meeting and library row offers **Change creator** (administrators only) and
+**Change co-managers** (administrators or creator). Creator transfers require an
+active account, preserve other co-managers, and remove a duplicate co-manager
+entry for the new creator. The former creator loses edit/share permissions unless
+they remain an administrator or explicitly assigned co-manager. This uses existing
+account tables; no new migration, model download or environment variable is needed.
+
 Only administrators can access Settings, credentials and global configuration.
 **Settings → User management** supports name/password edits, activation,
 deactivation and deletion. Passwords require 12–256 characters; leave a password

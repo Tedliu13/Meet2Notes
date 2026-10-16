@@ -57,6 +57,11 @@ class Managers(BaseModel):
     user_ids: list[Annotated[int, Field(strict=True, gt=0)]] = Field(max_length=100)
 
 
+class Creator(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    user_id: int = Field(strict=True, gt=0)
+
+
 def set_session(response: Response, store: Accounts, user: dict[str, Any]) -> None:
     response.set_cookie(
         "__Host-m2n_session",
@@ -150,6 +155,15 @@ def managers(
 ) -> dict[str, Any]:
     user = current_user(request)
     store.set_managers(meeting_id, payload.user_ids, user)
+    return store.meeting_access(meeting_id, user)
+
+
+@router.put("/meetings/{meeting_id}/creator")
+def creator(
+    meeting_id: int, payload: Creator, request: Request, store: AccountsDep
+) -> dict[str, Any]:
+    user = admin_user(request)
+    store.set_creator(meeting_id, payload.user_id, user)
     return store.meeting_access(meeting_id, user)
 
 

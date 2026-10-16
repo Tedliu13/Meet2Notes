@@ -46,6 +46,7 @@ class MeetingResponse(BaseModel):
     managers: list[dict[str, Any]] = Field(default_factory=list)
     can_manage: bool = True
     can_share: bool = True
+    can_transfer: bool = False
 
 
 class RecordingResponse(BaseModel):

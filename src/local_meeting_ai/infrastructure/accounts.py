@@ -212,12 +212,38 @@ class Accounts:
             "managers": [dict(row) for row in managers],
             "can_manage": can_share or any(row["id"] == user["id"] for row in managers),
             "can_share": can_share,
+            "can_transfer": bool(user["is_admin"]),
         }
 
-    def set_managers(self, meeting_id: int, ids: list[int], user: dict[str, Any]) -> None:
-        if not self.meeting_access(meeting_id, user)["can_share"]:
-            raise HTTPException(403, "只有管理者或建立者可指定共同管理者")
+    def set_creator(self, meeting_id: int, creator_id: int, user: dict[str, Any]) -> None:
+        if not user["is_admin"]:
+            raise HTTPException(403, "只有管理者可修改會議建立者")
         with self.database.transaction() as conn:
+            if not conn.execute("SELECT 1 FROM meetings WHERE id=?", (meeting_id,)).fetchone():
+                raise HTTPException(404, "找不到會議")
+            if not conn.execute(
+                "SELECT 1 FROM users WHERE id=? AND active=1 AND deleted=0", (creator_id,)
+            ).fetchone():
+                raise HTTPException(422, "建立者必須是啟用中的使用者")
+            conn.execute("UPDATE meetings SET creator_id=? WHERE id=?", (creator_id, meeting_id))
+            # The creator already has management rights; avoid duplicate name labels.
+            conn.execute(
+                "DELETE FROM meeting_managers WHERE meeting_id=? AND user_id=?",
+                (meeting_id, creator_id),
+            )
+
+    def set_managers(self, meeting_id: int, ids: list[int], user: dict[str, Any]) -> None:
+        with self.database.transaction() as conn:
+            owner = conn.execute(
+                "SELECT creator_id FROM meetings WHERE id=?", (meeting_id,)
+            ).fetchone()
+            if not owner:
+                raise HTTPException(404, "找不到會議")
+            # Recheck under the writer lock: an ownership transfer may have
+            # completed since middleware checked this request.
+            if not user["is_admin"] and owner["creator_id"] != user["id"]:
+                raise HTTPException(403, "只有管理者或建立者可指定共同管理者")
+            ids = list(set(ids) - {owner["creator_id"]})
             for user_id in set(ids):
                 if not conn.execute(
                     "SELECT 1 FROM users WHERE id=? AND active=1 AND deleted=0", (user_id,)

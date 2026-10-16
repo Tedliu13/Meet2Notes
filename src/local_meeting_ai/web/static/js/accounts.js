@@ -46,6 +46,8 @@
   const people = document.querySelector("#meeting-people");
   const dialog = document.querySelector("#meeting-managers-dialog");
   const options = document.querySelector("#meeting-manager-options");
+  const creatorDialog = document.querySelector("#meeting-creator-dialog");
+  const creatorSelect = document.querySelector("#meeting-creator-select");
   let access = null;
   let targetId = null;
   let generation = 0;
@@ -56,6 +58,7 @@
     if (pendingTitle) pendingTitle.disabled = true;
     if (people) people.textContent = "正在讀取會議權限…";
     if (dialog?.open) dialog.close();
+    if (creatorDialog?.open) creatorDialog.close();
     targetId = id;
     const result = await api(`/api/meetings/${id}/access`);
     if (request !== generation) return;
@@ -70,7 +73,8 @@
     if (people) {
       people.innerHTML = (access.creator ? `<span class="person-label">建立者：${escapeHTML(access.creator.name)}${access.creator.deleted ? "（帳號已刪除）" : ""}</span>` : "")
         + access.managers.map((user) => `<span class="person-label">共同管理：${escapeHTML(user.name)}</span>`).join("")
-        + (access.can_share ? '<button type="button" class="text-button" id="manage-meeting-people">共同管理</button>' : "")
+        + (access.can_transfer ? '<button type="button" class="text-button" id="manage-meeting-creator">修改建立者</button>' : "")
+        + (access.can_share ? '<button type="button" class="text-button" id="manage-meeting-people">修改共同管理者</button>' : "")
         + (!access.can_manage ? '<span class="person-label">唯讀：可觀看、播放及使用會議工具</span>' : "");
     }
     applyReadOnly();
@@ -83,28 +87,73 @@
     });
   }
   if (people) {
+    let autoOpened = false;
+    async function loadPageAccess(id) {
+      const pending = loadAccess(id);
+      const version = generation;
+      await pending;
+      if (version !== generation || autoOpened) return;
+      const action = new URLSearchParams(location.search).get("manage");
+      if (!["creator", "managers"].includes(action)) return;
+      autoOpened = true;
+      await openAccessEditor(action);
+    }
+    async function openAccessEditor(mode) {
+      const id = targetId;
+      const snapshot = access;
+      const version = generation;
+      if (!snapshot || !(mode === "creator" ? snapshot.can_transfer : snapshot.can_share)) return;
+      const directory = await api("/api/users/directory");
+      if (id !== targetId || snapshot !== access || version !== generation) return;
+      if (mode === "creator") {
+        creatorSelect.innerHTML = '<option value="" disabled>請選擇建立者</option>' + directory.map((user) => `<option value="${user.id}">${escapeHTML(user.name)}</option>`).join("");
+        creatorSelect.value = String(snapshot.creator?.id || "");
+        document.querySelector("#save-meeting-creator").disabled = !creatorSelect.value;
+        if (!creatorDialog.open) creatorDialog.showModal();
+      } else {
+        options.innerHTML = directory.filter((user) => user.id !== snapshot.creator?.id).map((user) => `<label><input type="checkbox" value="${user.id}" ${snapshot.managers.some((manager) => manager.id === user.id) ? "checked" : ""}>${escapeHTML(user.name)}</label>`).join("") || "目前沒有其他可指定的使用者";
+        if (!dialog.open) dialog.showModal();
+      }
+    }
+    document.querySelector("#close-meeting-creator").addEventListener("click", () => creatorDialog.close());
+    creatorSelect.addEventListener("change", () => {
+      document.querySelector("#save-meeting-creator").disabled = !creatorSelect.value;
+    });
     document.querySelector("#close-meeting-managers").addEventListener("click", () => dialog.close());
     const page = document.querySelector("[data-meeting-id]");
-    if (page?.dataset.meetingId) loadAccess(page.dataset.meetingId).catch((error) => toast(error.message, "error"));
-    document.addEventListener("meet2notes:meetingloaded", (event) => loadAccess(event.detail.id).catch((error) => toast(error.message, "error")));
+    if (page?.dataset.meetingId) loadPageAccess(page.dataset.meetingId).catch((error) => toast(error.message, "error"));
+    document.addEventListener("meet2notes:meetingloaded", (event) => loadPageAccess(event.detail.id).catch((error) => toast(error.message, "error")));
     new MutationObserver(applyReadOnly).observe(document.querySelector("#transcription-workspace"), { childList: true, subtree: true });
     people.addEventListener("click", async (event) => {
-      if (!event.target.closest("#manage-meeting-people")) return;
+      const creator = event.target.closest("#manage-meeting-creator");
+      if (!creator && !event.target.closest("#manage-meeting-people")) return;
+      try { await openAccessEditor(creator ? "creator" : "managers"); }
+      catch (error) { toast(error.message, "error"); }
+    });
+    document.querySelector("#save-meeting-creator").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      const id = targetId;
+      const user_id = Number(creatorSelect.value);
+      if (button.disabled || !user_id) return;
+      button.disabled = true;
       try {
-        const directory = await api("/api/users/directory");
-        options.innerHTML = directory.filter((user) => user.id !== access.creator?.id).map((user) => `<label><input type="checkbox" value="${user.id}" ${access.managers.some((manager) => manager.id === user.id) ? "checked" : ""}>${escapeHTML(user.name)}</label>`).join("") || "目前沒有其他可指定的使用者";
-        if (!dialog.open) dialog.showModal();
+        await api(`/api/meetings/${id}/creator`, { method: "PUT", body: JSON.stringify({ user_id }) });
+        creatorDialog.close();
+        if (id === targetId) await loadAccess(id);
+        toast("建立者已更新");
       } catch (error) { toast(error.message, "error"); }
+      finally { button.disabled = false; }
     });
     document.querySelector("#save-meeting-managers").addEventListener("click", async (event) => {
-      const button = event.target;
+      const button = event.currentTarget;
       const id = targetId;
+      if (button.disabled) return;
       button.disabled = true;
       try {
         const user_ids = [...options.querySelectorAll("input:checked")].map((input) => Number(input.value));
         await api(`/api/meetings/${id}/managers`, { method: "PUT", body: JSON.stringify({ user_ids }) });
         dialog.close();
-        await loadAccess(id);
+        if (id === targetId) await loadAccess(id);
         toast("共同管理者已更新");
       } catch (error) { toast(error.message, "error"); }
       finally { button.disabled = false; }

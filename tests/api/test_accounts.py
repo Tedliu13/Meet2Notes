@@ -349,3 +349,89 @@ def test_bootstrap_is_idempotent_and_claims_legacy_meetings(settings):
     assert admin and admin["is_admin"]
     assert len(store.list_users()) == 1
     assert store.meeting_access(meeting.id, admin)["creator"]["id"] == admin["id"]
+
+
+def test_admin_transfers_creator_preserves_managers_and_rechecks_permissions(account_client):
+    from fastapi import HTTPException
+
+    client = account_client
+    alice = register(client)
+    meeting = client.post("/api/meetings", json={"title": "Transfer me"}).json()
+    other = client.post("/api/meetings", json={"title": "Keep owner"}).json()
+    mid = meeting["id"]
+    seed_transcript(client, mid)  # The library excludes empty draft meetings.
+    bob = register(client, "bob", "Bob")
+    charlie = register(client, "charlie", "Charlie")
+    login(client)
+    assert (
+        client.put(
+            f"/api/meetings/{mid}/managers", json={"user_ids": [bob["id"], charlie["id"]]}
+        ).status_code
+        == 200
+    )
+    response = client.put(f"/api/meetings/{mid}/creator", json={"user_id": bob["id"]})
+    assert response.status_code == 200
+    assert response.json()["creator"]["id"] == bob["id"]
+    assert response.json()["can_transfer"] is True
+    assert [u["id"] for u in response.json()["managers"]] == [charlie["id"]]
+    assert client.get(f"/api/meetings/{other['id']}").json()["creator"]["id"] == alice["id"]
+    assert f"meeting={mid}&amp;manage=creator" in client.get("/meetings").text
+    assert client.get("/api/library").json()["items"][0]["can_transfer"] is True
+
+    # A request authorized before transfer must recheck ownership in its transaction.
+    with pytest.raises(HTTPException) as error:
+        client.app.state.accounts.set_managers(mid, [], alice)
+    assert error.value.status_code == 403
+    login(client, "alice")
+    assert client.patch(f"/api/meetings/{mid}", json={"title": "not allowed"}).status_code == 403
+    assert (
+        client.put(f"/api/meetings/{mid}/creator", json={"user_id": alice["id"]}).status_code == 403
+    )
+    login(client, "bob")
+    assert client.get(f"/api/meetings/{mid}/access").json()["can_share"] is True
+    assert client.get(f"/api/meetings/{mid}/access").json()["can_transfer"] is False
+    assert client.patch(f"/api/meetings/{mid}", json={"title": "New owner"}).status_code == 200
+    assert (
+        client.put(f"/api/meetings/{mid}/creator", json={"user_id": alice["id"]}).status_code == 403
+    )
+    assert (
+        client.put(
+            f"/api/meetings/{mid}/managers", json={"user_ids": [bob["id"], charlie["id"]]}
+        ).status_code
+        == 200
+    )
+    login(client, "charlie")
+    assert (
+        client.patch(f"/api/meetings/{mid}", json={"title": "Co-manager edit"}).status_code == 200
+    )
+    assert (
+        client.put(f"/api/meetings/{mid}/creator", json={"user_id": charlie["id"]}).status_code
+        == 403
+    )
+    login(client)
+    for invalid in ({"user_id": 999999}, {"user_id": True}, {"user_id": None}):
+        assert client.put(f"/api/meetings/{mid}/creator", json=invalid).status_code == 422
+    assert (
+        client.put("/api/meetings/999999/creator", json={"user_id": bob["id"]}).status_code == 404
+    )
+    assert client.patch(f"/api/users/{alice['id']}", json={"active": False}).status_code == 200
+    assert (
+        client.put(f"/api/meetings/{mid}/creator", json={"user_id": alice["id"]}).status_code == 422
+    )
+    assert client.delete(f"/api/users/{alice['id']}").status_code == 204
+    assert (
+        client.put(f"/api/meetings/{mid}/creator", json={"user_id": alice["id"]}).status_code == 422
+    )
+    final = client.get(f"/api/meetings/{mid}/access").json()
+    assert final["creator"]["id"] == bob["id"]
+    assert [u["id"] for u in final["managers"]] == [charlie["id"]]
+    with client.app.state.container.database.transaction() as conn:
+        conn.executemany(
+            "INSERT INTO meetings(uuid,title,status,source_type,created_at,updated_at) "
+            "VALUES(?,?,'draft','manual','2099-01-01','2099-01-01')",
+            [(f"newer-{i}", f"Newer {i}") for i in range(100)],
+        )
+    html = client.get(f"/?meeting={mid}&manage=creator")
+    assert html.status_code == 200
+    assert f'data-meeting-id="{mid}"' in html.text
+    assert client.get("/?meeting=999999&manage=creator").status_code == 404

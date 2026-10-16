@@ -109,6 +109,10 @@
   "mcp.status_enabled": "Enabled · desktop clients can use the read-only Meet2Notes tools while this app is running.",
   "mcp.title": "MCP desktop clients",
   "literal": {
+    "修改建立者": "Change creator",
+    "修改共同管理者": "Change co-managers",
+    "建立者": "Creator",
+    "新建立者將取得會議管理與共同管理者指派權限。原建立者若非管理者或共同管理者，將只保留觀看及工具使用權限。": "The new creator can manage the meeting and assign co-managers. The previous creator retains viewing and tools access unless they are an administrator or co-manager.",
     "使用者管理": "User management",
     "修改姓名、重設密碼，或啟用、停用及刪除帳號。密碼至少 12 字元；重設後使用者需重新登入。": "Edit names, reset passwords, activate, deactivate or delete accounts. Passwords need at least 12 characters. Password resets require a new login.",
     "儲存": "Save",
