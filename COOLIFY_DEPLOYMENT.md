@@ -30,6 +30,8 @@
 
 安全設計參考：[OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)、[OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)。
 
+會議內容頁及會議庫的名稱、建立者／共同管理標籤與修改入口改為同列緊湊排版，窄螢幕自動換行；搜尋／換頁後仍維持相同排版。此為前端更新，無新環境變數、migration、掛載或模型異動；部署更新版並重新整理頁面即可。
+
 ### 新增會議的已知講者名單
 
 新增會議選完音訊／影片後，在「選擇處理流程」的「已知講者名單」勾選既有聲紋人物；一般新增匯入視窗也提供相同選項。這些是已儲存聲紋的人物，不是網站帳號，不會授予共同管理權限。只有有聲音樣本的資料會列出。沒有聲紋時顯示說明；載入失敗可重試或不勾選繼續。

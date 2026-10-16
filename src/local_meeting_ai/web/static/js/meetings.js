@@ -52,9 +52,10 @@
       document.querySelector("#visible-meeting-count").textContent = result.total;
       document.querySelector("#visible-meeting-label").textContent = t("meetings.saved_count", { count: result.total }, result.total);
       list.innerHTML = result.items.map((item) => `<article class="library-result">
-        <header><div><h3><a href="/?meeting=${item.id}">${escapeHTML(item.title)}</a></h3>
+        <header><div><div class="meeting-title-line"><h3><a href="/?meeting=${item.id}">${escapeHTML(item.title)}</a></h3>
         <div class="meeting-people">${item.creator ? `<span class="person-label">建立者：${escapeHTML(item.creator.name)}</span>` : ""}${(item.managers || []).map((user) => `<span class="person-label">共同管理：${escapeHTML(user.name)}</span>`).join("")}</div>
         <div class="meeting-people">${item.can_transfer ? `<a class="text-button" href="/?meeting=${item.id}&manage=creator">修改建立者</a>` : ""}${item.can_share && document.body.dataset.hosted === "true" ? `<a class="text-button" href="/?meeting=${item.id}&manage=managers">修改共同管理者</a>` : ""}</div>
+        </div>
         <small>${escapeHTML(new Date(item.meeting_date).toLocaleString(Meet2Notes.currentLanguage, { dateStyle: "medium", timeStyle: "short" }))} · ${time(item.duration_ms)}${item.audio_deleted_at ? ` · ${t("library.audio_deleted")}` : ""}</small></div>
         <div class="library-row-actions">${item.can_manage === false ? "" : `<button type="button" class="button secondary" data-edit-tags="${item.id}" data-title="${escapeHTML(item.title)}">${t("library.edit_tags")}</button><button type="button" class="text-button danger" data-delete-meeting="${item.id}" data-title="${escapeHTML(item.title)}">${t("library.delete")}</button>`}</div></header>
         ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ""}

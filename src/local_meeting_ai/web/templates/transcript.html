@@ -32,6 +32,7 @@
   <div class="transcription-workspace" id="transcription-workspace">
   <section class="transcription-canvas panel">
     <header class="transcription-canvas-header">
+      <div class="meeting-heading-group">
       <div class="transcription-name-control">
         <button
           type="button"
@@ -52,6 +53,7 @@
       </div>
 
       <div id="meeting-people" class="meeting-people" aria-live="polite"></div>
+      </div>
       <div class="transcription-primary-actions">
         <button type="button" class="button primary start-transcription-button {{ '' if request.query_params.get('new') == '1' else 'hidden' }}" id="start-transcription">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>

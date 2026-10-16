@@ -56,6 +56,9 @@ active account, preserve other co-managers, and remove a duplicate co-manager
 entry for the new creator. The former creator loses edit/share permissions unless
 they remain an administrator or explicitly assigned co-manager. This uses existing
 account tables; no new migration, model download or environment variable is needed.
+Meeting names, creator/co-manager labels and management actions share a compact
+header row, wrapping only when space is limited. This also applies after library
+searches and pagination refresh the results.
 
 New meetings can also specify **Known speakers** in the final-processing dialog
 after choosing a media file (and in the generic new-recording import dialog).
