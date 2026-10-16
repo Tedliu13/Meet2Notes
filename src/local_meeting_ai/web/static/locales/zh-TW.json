@@ -1,4 +1,8 @@
 {
+  "speaker.processing": "講者辨識中…",
+  "speaker.previous_results": "上次辨識結果（此次未完成）",
+  "speaker.refreshing": "辨識已完成，正在更新結果…",
+  "speaker.processing_hint": "完成後將自動顯示新結果。您可以切換頁面，辨識會在背景繼續執行。",
   "speaker.rebuild_queued": "工作已排隊，等待工作執行緒。",
   "speaker.rebuild_starting": "工作已啟動，等待引擎回報進度…",
   "speaker.rebuild_counts": "已更新：設定 {requested} 人，實際辨識 {detected} 位講者。設定人數不保證每群都有有效發言片段。",

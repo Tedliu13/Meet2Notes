@@ -96,6 +96,8 @@
   let activeSpeakerSummaryId = null;
   let speakerSummaryDismissed = false;
   let activeSpeakerRebuildJobId = null;
+  let speakerRebuildSnapshot = null;
+  const speakerJobSnapshot = new Map();
   let speakerRebuildPollTimer = null;
   let speakerRebuildRefreshPromise = null;
   let speakerRebuildDismissed = false;
@@ -803,13 +805,67 @@
     applyAudioAvailability();
   }
 
+  function rememberSpeakerJob(job) {
+    if (!job?.uuid) return job;
+    const previous = speakerJobSnapshot.get(job.uuid);
+    if (previous && ["completed", "failed", "cancelled"].includes(previous.status) &&
+        !["completed", "failed", "cancelled"].includes(job.status)) return previous;
+    speakerJobSnapshot.set(job.uuid, job);
+    return job;
+  }
+
+  function speakerPanelJob() {
+    const matches = job => Number(job?.payload?.transcription_id) === Number(activeTranscriptionId);
+    if (speakerRebuildSnapshot && matches(speakerRebuildSnapshot) &&
+        (!speakerRebuildSnapshot.uuid || speakerRebuildSnapshot.uuid === activeSpeakerRebuildJobId)) {
+      return speakerRebuildSnapshot;
+    }
+    return [...speakerJobSnapshot.values()].find(job => matches(job) &&
+      ["queued", "running", "paused"].includes(job.status)) || null;
+  }
+
+  function renderSpeakerProcessing(container, status, job) {
+    const refreshing = job.status === "completed";
+    status.textContent = t(refreshing ? "speaker.refreshing" : "speaker.processing");
+    status.classList.remove("ready");
+    status.setAttribute("aria-live", "polite");
+    container.setAttribute("aria-busy", "true");
+    const unknown = isIndeterminateJob(job) || job.status === "queued" ||
+      (job.status === "running" && !job.progress);
+    const percent = Math.round(Math.max(0, Math.min(1, Number(job.progress || 0))) * 100);
+    const message = refreshing ? t("transcript.loading")
+      : job.status === "queued" ? t("speaker.rebuild_queued")
+        : (!job.message || job.message === "Starting") ? t("speaker.rebuild_starting") : job.message;
+    container.innerHTML = `<div class="speaker-processing">
+      <i class="mini-spinner" aria-hidden="true"></i>
+      <strong>${escapeHTML(status.textContent)}</strong>
+      <span>${escapeHTML(t("speaker.processing_hint"))}</span>
+      <p>${escapeHTML(message)}</p>
+      <progress max="100" ${unknown ? "" : `value="${percent}"`}
+        aria-label="${escapeHTML(status.textContent)}"></progress>
+      <span>${escapeHTML(unknown ? t("audio.working") : `${percent}%`)}</span>
+    </div>`;
+  }
+
   function renderSpeakerPanel(detail = lastDetail || {}) {
     const container = document.querySelector("#speaker-results");
     const status = document.querySelector("#speaker-result-status");
+    const processing = speakerPanelJob();
     document.querySelector("#speaker-rebuild-identification").disabled =
-      Boolean(activeSpeakerRebuildJobId)
+      Boolean(activeSpeakerRebuildJobId || processing)
       || !activeTranscriptionId
       || detail?.transcription?.status !== "completed";
+    if (processing) {
+      if (!activeSpeakerRebuildJobId && processing.uuid) {
+        activeSpeakerRebuildJobId = processing.uuid;
+        speakerRebuildSnapshot = processing;
+        speakerRebuildDismissed = true;
+        pollSpeakerRebuild(processing.uuid);
+      }
+      renderSpeakerProcessing(container, status, processing);
+      return;
+    }
+    container.removeAttribute("aria-busy");
     const speakers = detail.speakers || [];
     const segments = detail.segments || [];
     const rawTurns = detail.speaker_turns || [];
@@ -829,6 +885,11 @@
     const colorMap = new Map(speakers.map((speaker, index) => [Number(speaker.id), index]));
     status.textContent = `${speakers.length} speaker${speakers.length === 1 ? "" : "s"}`;
     status.classList.add("ready");
+    if (Number(speakerRebuildSnapshot?.payload?.transcription_id) === Number(activeTranscriptionId) &&
+        ["failed", "cancelled"].includes(speakerRebuildSnapshot?.status)) {
+      status.textContent = t("speaker.previous_results");
+      status.classList.remove("ready");
+    }
     const speakerColorCount = 6;
     const totalTalkTime = speakers.reduce((total, speaker) => total + speaker.talk_time_ms, 0);
     const cards = speakers.map((speaker, index) => {
@@ -1448,6 +1509,9 @@
 
   function renderSpeakerRebuildJob(job, { resultsRefreshed = false } = {}) {
     if (!job) return;
+    job = rememberSpeakerJob(job);
+    speakerRebuildSnapshot = job;
+    renderSpeakerPanel();
     const terminal = ["completed", "failed", "cancelled"].includes(job.status);
     const progress = job.status === "completed"
       ? 1
@@ -1499,12 +1563,11 @@
         if (refreshed === false) return;
         renderSpeakerRebuildJob(job, { resultsRefreshed: true });
         toast("Speaker identification rebuilt.", "success");
-      } else {
-        renderSpeakerPanel();
       }
       if (activeSpeakerRebuildJobId === job.uuid) activeSpeakerRebuildJobId = null;
+      speakerRebuildSnapshot = job.status === "completed" ? null : job;
       clearTimeout(speakerRebuildPollTimer);
-      document.querySelector("#speaker-rebuild-identification").disabled = false;
+      renderSpeakerPanel();
     })();
     try { await speakerRebuildRefreshPromise; }
     finally { speakerRebuildRefreshPromise = null; }
@@ -1534,16 +1597,26 @@
     }
     const button = document.querySelector("#speaker-rebuild-confirm");
     button.disabled = true;
+    const transcriptionId = activeTranscriptionId;
+    speakerRebuildSnapshot = { status: "queued", payload: { transcription_id: transcriptionId } };
+    renderSpeakerPanel();
     try {
-      const job = await api(`/api/transcriptions/${activeTranscriptionId}/diarize`, {
+      const job = rememberSpeakerJob(await api(`/api/transcriptions/${transcriptionId}/diarize`, {
         method: "POST",
         body: JSON.stringify({ speaker_count: known ? requestedCount : null }),
-      });
+      }));
       activeSpeakerRebuildJobId = job.uuid;
       document.querySelector("#speaker-rebuild-identification").disabled = true;
       renderSpeakerRebuildJob(job);
       pollSpeakerRebuild(job.uuid);
+      if (["completed", "failed", "cancelled"].includes(job.status)) {
+        await updateSpeakerRebuildJob(job);
+      }
     } catch (error) {
+      if (!activeSpeakerRebuildJobId) {
+        speakerRebuildSnapshot = null;
+        renderSpeakerPanel();
+      }
       toast(error.message, "error");
     } finally {
       button.disabled = false;
@@ -3187,6 +3260,9 @@
 
   async function applyJobUpdates(jobs) {
     if (!meetingId) return;
+    jobs.filter(job => String(job.meeting_id) === String(meetingId) && job.job_type === "diarize")
+      .forEach(rememberSpeakerJob);
+    if (speakerPanelJob()) renderSpeakerPanel();
     summaryJobSnapshot = jobs.filter((job) =>
       String(job.meeting_id) === String(meetingId) && job.job_type === "summarize" &&
       job.payload?.summary_scope !== "speaker");

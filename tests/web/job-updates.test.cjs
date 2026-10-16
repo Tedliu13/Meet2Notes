@@ -12,6 +12,7 @@ function workspace() {
   const state = {
     meetingId: '38', activeTranscriptionId: 38, terminalJobIds: new Set(),
     activeSpeakerRebuildJobId: null, activeSpeakerSummaryJobId: null,
+    speakerRebuildSnapshot: null, speakerJobSnapshot: new Map(), renderSpeakerPanel() {},
     meetingSummaries: [{ ...summary, status: 'queued', content_markdown: null }], versions: [],
     summaryJobSnapshot: [],
     requests: [], rendered: [], selected: [], notifications: [], timers: [],
@@ -25,6 +26,8 @@ function workspace() {
     clearTimeout() {}, console: { warn() {} },
   };
   vm.createContext(state);
+  vm.runInContext(source.slice(source.indexOf('  function rememberSpeakerJob('),
+    source.indexOf('  function renderSpeakerProcessing(')), state);
   vm.runInContext(updates, state);
   return state;
 }

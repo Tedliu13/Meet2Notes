@@ -1,4 +1,8 @@
 {
+  "speaker.processing": "Identificando hablantes…",
+  "speaker.previous_results": "Resultados anteriores (este intento no se completó)",
+  "speaker.refreshing": "Identificación terminada; cargando los resultados…",
+  "speaker.processing_hint": "Los resultados aparecerán automáticamente. Puede cambiar de página mientras la identificación continúa en segundo plano.",
   "speaker.rebuild_queued": "En cola; esperando un trabajador.",
   "speaker.rebuild_starting": "El trabajo comenzó; esperando el progreso del motor…",
   "speaker.rebuild_counts": "Actualizado: se solicitaron {requested} hablantes; se detectaron {detected}. El número solicitado no garantiza voz utilizable en cada grupo.",

@@ -92,6 +92,11 @@ engine reports a measurable stage. This does not retry or duplicate inference.
 Completion shows the requested and detected speaker counts, which may differ.
 Failed or superseded result reads keep retrying, and diarization completion
 retains the selected transcript version instead of switching to another version.
+While speaker identification is queued/running, the Speakers tab replaces old
+cards with an animated progress view, including after closing the dialog or
+reopening the page. It shows updated cards only after fetching fresh results;
+failed/cancelled attempts restore existing cards labelled as previous results.
+This changes presentation only and does not delete saved speaker data.
 
 For video calls, select **Microphone + System audio** together to record both
 sides of the conversation. See the [audio capture setup guide](docs/audio-capture.md)

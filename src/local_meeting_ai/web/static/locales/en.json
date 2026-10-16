@@ -1,4 +1,8 @@
 {
+  "speaker.processing": "Identifying speakers…",
+  "speaker.previous_results": "Previous results (this attempt did not complete)",
+  "speaker.refreshing": "Identification finished; loading updated results…",
+  "speaker.processing_hint": "New results will appear automatically. You can switch pages while identification continues in the background.",
   "speaker.rebuild_queued": "Queued; waiting for a job worker.",
   "speaker.rebuild_starting": "The job has started; waiting for the engine to report progress…",
   "speaker.rebuild_counts": "Updated: requested {requested} speakers; detected {detected}. The requested count does not guarantee usable speech in every cluster.",

@@ -9,6 +9,7 @@ function workspace(status = 'running') {
   const job = { uuid: 'rebuild', status, progress: 0, message: 'Starting' };
   const state = {
     activeSpeakerRebuildJobId: job.uuid, activeTranscriptionId: 14,
+    speakerRebuildSnapshot: null, speakerJobSnapshot: new Map(),
     speakerRebuildPollTimer: null, speakerRebuildRefreshPromise: null,
     speakerRebuildDismissed: false, speakerRebuildDialog: { open: true, showModal() {} },
     t: key => key, isIndeterminateJob: () => false,
@@ -17,11 +18,17 @@ function workspace(status = 'running') {
         removeAttribute() { this.value = undefined; } });
       return nodes.get(selector);
     } },
-    async api() { return job; }, async selectTranscription() { return true; }, renderSpeakerPanel() {},
+    async api() { return job; }, async selectTranscription() { return true; },
+    renderSpeakerPanel() {
+      state.document.querySelector('#speaker-rebuild-identification').disabled =
+        Boolean(state.activeSpeakerRebuildJobId);
+    },
     toast: message => notices.push(message), console: { warn() {} },
     setTimeout(callback) { timers.push(callback); return timers.length; }, clearTimeout() {},
   };
   vm.createContext(state);
+  vm.runInContext(source.slice(source.indexOf('  function rememberSpeakerJob('),
+    source.indexOf('  function renderSpeakerProcessing(')), state);
   vm.runInContext(source.slice(source.indexOf('  function renderSpeakerRebuildJob('),
     source.indexOf('  async function startSpeakerRebuild(')), state);
   return { state, job, nodes, timers, notices };

@@ -1857,6 +1857,25 @@ body[data-hosted="true"] .source-mode-grid {
   line-height: 1.55;
 }
 
+.speaker-processing {
+  display: flex;
+  min-height: 240px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px;
+  text-align: center;
+}
+
+.speaker-processing .mini-spinner { width: 30px; height: 30px; }
+.speaker-processing progress { width: min(100%, 360px); }
+.speaker-processing p { margin: 0; overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) {
+  .speaker-processing .mini-spinner { animation: none; }
+}
+
 .speaker-overview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
