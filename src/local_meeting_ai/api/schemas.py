@@ -806,6 +806,9 @@ class DiarizationStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     speaker_count: int | None = Field(default=None, ge=1, le=20)
+    known_speaker_profile_ids: list[Annotated[int, Field(strict=True, gt=0)]] | None = Field(
+        default=None, max_length=100,
+    )
 
 
 class SummaryResponse(BaseModel):

@@ -1507,6 +1507,10 @@
     document.querySelector("#speaker-rebuild-description").textContent =
       "Run diarization again without changing the transcript or AI notes.";
     syncSpeakerRebuildControls();
+    void Meet2Notes.knownSpeakers?.open({
+      id: "rebuild-known-speaker-picker",
+      selected: currentMeeting?.known_speaker_profile_ids || [],
+    });
     if (!speakerRebuildDialog.open) speakerRebuildDialog.showModal();
   }
 
@@ -1592,6 +1596,10 @@
   }
 
   async function startSpeakerRebuild() {
+    if (!Meet2Notes.knownSpeakers?.isReady("rebuild-known-speaker-picker")) {
+      toast(t("known_speakers.wait"), "error");
+      return;
+    }
     const known = document.querySelector('input[name="speaker-rebuild-mode"]:checked')?.value === "known";
     const requestedCount = Number(document.querySelector("#speaker-rebuild-count").value);
     if (known && (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 20)) {
@@ -1606,7 +1614,11 @@
     try {
       const job = rememberSpeakerJob(await api(`/api/transcriptions/${transcriptionId}/diarize`, {
         method: "POST",
-        body: JSON.stringify({ speaker_count: known ? requestedCount : null }),
+        body: JSON.stringify({
+          speaker_count: known ? requestedCount : null,
+          known_speaker_profile_ids: Meet2Notes.knownSpeakers.isEnabled("rebuild-known-speaker-picker")
+            ? Meet2Notes.knownSpeakers.selectedIds("rebuild-known-speaker-picker") : undefined,
+        }),
       }));
       activeSpeakerRebuildJobId = job.uuid;
       document.querySelector("#speaker-rebuild-identification").disabled = true;

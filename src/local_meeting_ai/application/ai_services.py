@@ -218,6 +218,7 @@ class DiarizationService:
         transcription_id: int,
         *,
         speaker_count: int | None = None,
+        known_speaker_profile_ids: list[int] | None = None,
         postprocess_options: dict[str, Any] | None = None,
         postprocess: bool = False,
     ) -> Job:
@@ -239,6 +240,14 @@ class DiarizationService:
             raise CapabilityUnavailableError(
                 "Install the selected diarization engine and its models in Settings first"
             )
+        roster_payload: dict[str, Any] = {}
+        if known_speaker_profile_ids is not None:
+            profile_ids = sorted(set(known_speaker_profile_ids))
+            for profile_id in profile_ids:
+                profile = self.speaker_profiles.get(profile_id)
+                if not profile or not profile.sample_path:
+                    raise ValidationError("Known speakers must have a saved voice sample")
+            roster_payload["known_speaker_profile_ids"] = profile_ids
         job = self.jobs.create(
             meeting_id=transcription.meeting_id,
             job_type=JobType.DIARIZE,
@@ -248,6 +257,7 @@ class DiarizationService:
                 "postprocess": postprocess,
                 "postprocess_options": postprocess_options or {},
                 "speaker_count": speaker_count,
+                **roster_payload,
             },
             message="Waiting to identify speakers",
         )
@@ -295,7 +305,9 @@ class DiarizationService:
         recognized = await match_saved_speakers(
             Path(recording.local_path), turns, config, self.speaker_profiles, self.profile_matcher,
             job_uuid=job.uuid, transcription_id=transcription.id,
-            profile_ids=meeting.known_speaker_profile_ids,
+            profile_ids=job.payload.get(
+                "known_speaker_profile_ids", meeting.known_speaker_profile_ids,
+            ),
             progress=lambda value, message: self.jobs.update_progress(
                 job.uuid, 0.91 + 0.025 * value, message,
             ),

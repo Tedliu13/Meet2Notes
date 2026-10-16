@@ -1389,6 +1389,7 @@ async def start_diarization(
     job = await container.diarization_service.start(
         transcription_id,
         speaker_count=payload.speaker_count if payload else None,
+        known_speaker_profile_ids=payload.known_speaker_profile_ids if payload else None,
     )
     return JobResponse.model_validate(job)
 

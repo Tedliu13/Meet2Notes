@@ -1,4 +1,7 @@
 {
+  "known_speakers.wait": "Espere a que se cargue la lista de voces guardadas o vuelva a cargarla antes de continuar.",
+  "known_speakers.unavailable": "Voz guardada #{id} no disponible: desmárquela o restaure su muestra antes de continuar.",
+  "known_speakers.rebuild_help": "Se seleccionan los hablantes conocidos de esta reunión. Los cambios solo se aplican a esta reconstrucción; no modifican la lista original ni el número de hablantes.",
   "transcript.retry": "Volver a transcribir",
   "transcript.retry_confirm": "¿Volver a transcribir el archivo original con la configuración predeterminada actual? Se creará una nueva versión y se conservarán las transcripciones y notas existentes. La identificación de hablantes y las notas de IA no se ejecutarán automáticamente. Espere a que terminen los trabajos activos.",
   "transcript.retry_started": "Transcripción en cola. Puede salir de esta página; el procesamiento continuará en segundo plano.",
@@ -121,6 +124,7 @@
   "mcp.status_enabled": "Activado · los clientes de escritorio pueden usar las herramientas de solo lectura de Meet2Notes mientras la aplicación esté ejecutándose.",
   "mcp.title": "Clientes MCP de escritorio",
   "literal": {
+    "Starts with this meeting's known speakers. Your changes apply only to this rebuild; they do not change the meeting's original list or the number of speakers.": "Se seleccionan los hablantes conocidos de esta reunión. Los cambios solo se aplican a esta reconstrucción; no modifican la lista original ni el número de hablantes.",
     "Retranscribe": "Volver a transcribir",
     "Known speakers": "Hablantes conocidos",
     "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.": "Selecciona voces guardadas previstas en esta reunión. Solo se compararán las seleccionadas; las voces inciertas seguirán sin identificar. Deja vacío para comparar todas las voces guardadas.",

@@ -6,7 +6,7 @@ const source = fs.readFileSync('src/local_meeting_ai/web/static/js/known-speaker
 
 function widget(api) {
   const roots = {};
-  for (const id of ['known-speaker-picker', 'import-known-speaker-picker']) {
+  for (const id of ['known-speaker-picker', 'import-known-speaker-picker', 'rebuild-known-speaker-picker']) {
     const root = { hidden: false, checked: [], status: { textContent: '' }, retry: { hidden: true } };
     root.list = { get innerHTML() { return this.html || ''; }, set innerHTML(value) { this.html = value; root.checked = []; } };
     root.querySelector = selector => selector.includes('-list') ? root.list : selector.includes('-status') ? root.status : root.retry;
@@ -93,4 +93,54 @@ test('new file transcription sends selected profile IDs when creating the meetin
   await state.startFileTranscription({ diarization: true, speaker_count: null });
   assert.deepEqual(calls[0][1].known_speaker_profile_ids, [4, 8]);
   assert.equal(calls[1][1].postprocess_options.speaker_count, null);
+});
+
+test('rebuild preselects its roster and retains unavailable IDs visibly instead of expanding scope', async () => {
+  const { picker, roots } = widget(async () => [{ id: 3, name: 'Known', sample_path: 'voice.wav' }]);
+  const id = 'rebuild-known-speaker-picker';
+  await picker.open({ id, enabled: true, selected: [3, 99] });
+  assert.equal(picker.isReady(id), true);
+  assert.equal(picker.isEnabled(id), true);
+  assert.match(roots[id].list.innerHTML, /value="3" checked/);
+  assert.match(roots[id].list.innerHTML, /value="99" checked/);
+  assert.match(roots[id].list.innerHTML, /known_speakers.unavailable/);
+});
+
+test('rebuild cannot proceed while loading or after a failed roster request', async () => {
+  let reject;
+  const { picker } = widget(() => new Promise((resolve, fail) => { reject = fail; }));
+  const id = 'rebuild-known-speaker-picker';
+  const loading = picker.open({ id, enabled: true, selected: [3] });
+  assert.equal(picker.isReady(id), false);
+  reject(Error('offline'));
+  await loading;
+  assert.equal(picker.isReady(id), false);
+});
+
+test('rebuild submits selected voices independently of the requested speaker count', async () => {
+  const transcript = fs.readFileSync('src/local_meeting_ai/web/static/js/transcript.js', 'utf8');
+  const calls = [];
+  let ready = true, enabled = true;
+  const state = {
+    Meet2Notes: { knownSpeakers: {
+      isReady: () => ready, isEnabled: () => enabled, selectedIds: () => [4, 8],
+    } },
+    document: { querySelector: selector => ({ value: selector.includes(':checked') ? 'known' : '7' }) },
+    activeTranscriptionId: 14, activeSpeakerRebuildJobId: null,
+    renderSpeakerPanel() {}, renderSpeakerRebuildJob() {}, pollSpeakerRebuild() {},
+    rememberSpeakerJob: job => job, t: key => key, toast() {},
+    async api(path, options) { calls.push(JSON.parse(options.body)); return { uuid: 'job', status: 'queued' }; },
+  };
+  vm.createContext(state);
+  vm.runInContext(transcript.slice(transcript.indexOf('  async function startSpeakerRebuild('),
+    transcript.indexOf('  function setActiveMeetingTab(')), state);
+  await state.startSpeakerRebuild();
+  assert.deepEqual(calls[0], { speaker_count: 7, known_speaker_profile_ids: [4, 8] });
+  ready = false;
+  await state.startSpeakerRebuild();
+  assert.equal(calls.length, 1);
+  ready = true;
+  enabled = false;
+  await state.startSpeakerRebuild();
+  assert.deepEqual(calls[1], { speaker_count: 7 });
 });

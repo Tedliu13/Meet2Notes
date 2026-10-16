@@ -1,4 +1,7 @@
 {
+  "known_speakers.wait": "Wait for the saved voice list to load, or retry loading it before continuing.",
+  "known_speakers.unavailable": "Unavailable saved voice #{id} — deselect it or restore its sample before continuing.",
+  "known_speakers.rebuild_help": "Starts with this meeting's known speakers. Your changes apply only to this rebuild; they do not change the meeting's original list or the number of speakers.",
   "transcript.retry": "Retranscribe",
   "transcript.retry_confirm": "Retranscribe the original media using the current default transcription settings? A new version will be created; existing transcripts and AI notes will be retained. Speaker diarization and AI notes will not run automatically. Wait for any active jobs to finish first.",
   "transcript.retry_started": "Retranscription queued. You can leave this page; processing continues in the background.",
@@ -121,6 +124,7 @@
   "mcp.status_enabled": "Enabled · desktop clients can use the read-only Meet2Notes tools while this app is running.",
   "mcp.title": "MCP desktop clients",
   "literal": {
+    "Starts with this meeting's known speakers. Your changes apply only to this rebuild; they do not change the meeting's original list or the number of speakers.": "Starts with this meeting's known speakers. Your changes apply only to this rebuild; they do not change the meeting's original list or the number of speakers.",
     "Retranscribe": "Retranscribe",
     "Known speakers": "Known speakers",
     "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.": "Select saved voices expected in this meeting. Only selected voices will be compared; uncertain voices remain unidentified. Leave empty to compare all saved voices.",

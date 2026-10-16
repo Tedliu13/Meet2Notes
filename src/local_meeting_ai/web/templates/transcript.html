@@ -562,6 +562,8 @@
       <button class="icon-button close-button" id="speaker-rebuild-close" type="button" aria-label="Close">&times;</button>
     </div>
     <div id="speaker-rebuild-options">
+      {% set profile_picker_id = 'rebuild-known-speaker-picker' %}{% include "_known_speakers.html" %}
+      <p data-i18n="known_speakers.rebuild_help">Starts with this meeting's known speakers. Your changes apply only to this rebuild; they do not change the meeting's original list or the number of speakers.</p>
       <fieldset class="speaker-rebuild-choice">
         <legend>Number of speakers</legend>
         <label><input type="radio" name="speaker-rebuild-mode" value="auto" checked> Detect automatically</label>

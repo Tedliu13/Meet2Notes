@@ -19,6 +19,7 @@
 - Hosted 模式停用麥克風、系統音訊、即時錄音／轉錄及依賴它們的即時助理；保留音檔匯入、最終轉錄、講者辨識、摘要、Prompt、RAG、匯出、外掛與會後 Webhook。
 - 模型不得進入 image 或 build context。部署後才下載至獨立 `/models` named volume，含模型快取及私有模型 runtimes。
 - 轉錄頁的「重新轉錄」重用原始檔，以目前預設最終轉錄設定建立新版本，保留舊逐字稿與 AI 筆記，不自動辨識講者／生成筆記／下載模型。沿用會議寫入權限，同會議有進行中工作須拒絕；不可因舊版本為 failed／殘留 running 狀態而刪除資料，應以 jobs 的實際狀態判斷。
+- 重新辨識可在視窗預選／調整已知講者，本次名單保存於 diarize job payload，僅覆蓋該次比對範圍，不改會議原始名單。省略或 null 沿用會議設定，明確 [] 為全庫比對；非空名單即使聲紋在排隊後被刪除，也不可擴大至全庫。保留既有辨識門檻、全域開關與獨立人數設定；名單載入失敗不得當作空名單送出。
 - VM 曾在摘要推論出現 SIGILL；Docker 的 llama-cpp-python 必須由 source build、關閉 native／進階 x86 指令集最佳化，不能在未驗證 VM CPU 能力前恢復 `-march=native` 或換用預編譯 wheel。
 - `/data` named volume 保存 SQLite、錄音、聲紋、摘要、加密 secrets 與應用 logs；`/cache` 保存可重建快取及暫存上傳。
 - 應用上傳大小 `0` 表示不設大小上限，不能宣稱 Cloudflare／代理／磁碟亦無上限。

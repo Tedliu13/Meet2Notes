@@ -62,6 +62,11 @@ searches and pagination refresh the results.
 
 New meetings can also specify **Known speakers** in the final-processing dialog
 after choosing a media file (and in the generic new-recording import dialog).
+The **Rebuild speaker identification** dialog also offers this picker, initially
+selecting the meeting's original roster. Changes apply only to that rebuild and
+are saved in its queued job. Select voices to limit matching to those candidates,
+or leave empty to compare all saved voices; this does not set the speaker count
+or force a match. Loading errors must be retried before starting a rebuild.
 Select existing saved voice profiles, rather than user accounts. The selected
 profile IDs are saved on the meeting and reused for integrated ASR speaker
 matching, separate diarization and later speaker rebuilds. A nonempty selection
