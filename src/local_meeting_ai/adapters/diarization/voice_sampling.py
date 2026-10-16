@@ -98,11 +98,21 @@ def centroid(vectors: list[Any]) -> Any | None:
     return unit_vector(np.mean(vectors, axis=0)) if vectors else None
 
 
-def identify(vectors: list[Any], profiles: list[Any], threshold: float) -> tuple[int | None, bool]:
+def identify(
+    vectors: list[Any], profiles: list[Any], threshold: float,
+    *, diagnostics: dict[str, Any] | None = None,
+) -> tuple[int | None, bool]:
     """Require cosine threshold, separation from runner-up and fragment agreement."""
+    if diagnostics is not None:
+        diagnostics.clear()
     np = importlib.import_module("numpy")
     query = centroid(vectors)
     if query is None or not profiles:
+        if diagnostics is not None:
+            diagnostics.update(
+                reason="no_usable_fragments" if query is None else "no_usable_profiles",
+                fragments=len(vectors), threshold=threshold, best_profile_index=None,
+            )
         return None, False
     matrix = np.stack(profiles)
     scores = matrix @ query
@@ -113,4 +123,12 @@ def identify(vectors: list[Any], profiles: list[Any], threshold: float) -> tuple
     votes = sum(int(np.argmax(row)) == winner and float(row[winner]) >= threshold
                 for row in per_fragment)
     accepted = best >= threshold and gap >= 0.04 and votes >= math.ceil(len(vectors) * 0.6)
+    if diagnostics is not None:
+        diagnostics.update(
+            reason=("matched" if accepted else "below_threshold" if best < threshold else
+                    "ambiguous_profiles" if gap < 0.04 else "fragment_disagreement"),
+            best_profile_index=winner, best_score=round(best, 4), gap=round(gap, 4),
+            votes=votes, required_votes=math.ceil(len(vectors) * 0.6),
+            fragments=len(vectors), threshold=threshold,
+        )
     return (winner if accepted else None), (not accepted and best >= threshold - 0.1)

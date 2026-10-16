@@ -9,7 +9,9 @@ import wave
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -437,3 +439,70 @@ def test_composite_asr_persists_integrated_speaker_turns(tmp_path: Path) -> None
             True,
             True,
         ]
+
+
+@pytest.mark.parametrize("integrated", [True, False])
+@pytest.mark.parametrize("enabled", [True, False])
+def test_existing_voice_is_loaded_and_applied_to_a_later_meeting(
+    tmp_path: Path, monkeypatch: Any, integrated: bool, enabled: bool,
+) -> None:
+    from local_meeting_ai.adapters.diarization.profile_matching import (
+        SherpaOnnxSpeakerProfileMatcher,
+    )
+
+    calls = []
+
+    async def match(self, audio_path, turns, profiles, config, **kwargs):
+        calls.append((audio_path, turns, profiles, config))
+        return {0: profiles[0]}
+
+    monkeypatch.setattr(SherpaOnnxSpeakerProfileMatcher, "match", match)
+    engine = CompositeTranscriptionEngine() if integrated else FakeTranscriptionEngine()
+    with _client(tmp_path, engine) as client:
+        container = client.app.state.container
+        sample = container.storage.speaker_profile_path(1)
+        sample.parent.mkdir(parents=True, exist_ok=True)
+        sample.write_bytes(_wav_bytes())
+        profile = container.speaker_profiles.create(name="已儲存人物", sample_path=str(sample))
+        client.put("/api/settings", json={"diarization": {"recognize_saved_speakers": enabled}})
+        meeting = client.post("/api/meetings", json={"title": "Later meeting"}).json()
+        client.post(f"/api/meetings/{meeting['id']}/import",
+                    files={"file": ("later.wav", _wav_bytes(), "audio/wav")})
+        started = client.post(
+            f"/api/meetings/{meeting['id']}/transcriptions",
+            json={"profile_id": "balanced", "language": "en"},
+        ).json()
+        terminal = _wait_for_job(client, started["job"]["uuid"])
+        transcription_id = started["transcription"]["id"]
+        if not integrated:
+            original = container.diarization_service.engine
+            container.diarization_service.engine = SimpleNamespace(
+                capability=lambda: {"available": True, "installed": True},
+                diarize=AsyncMock(return_value=[
+                    DiarizationSegment(0, 1200, 0), DiarizationSegment(1200, 2800, 1),
+                ]),
+            )
+            try:
+                job = client.post(f"/api/transcriptions/{transcription_id}/diarize", json={}).json()
+                terminal = _wait_for_job(client, job["uuid"])
+            finally:
+                container.diarization_service.engine = original
+        assert terminal["status"] == "completed", terminal
+        assert terminal["result"]["matched_speaker_count"] == int(enabled)
+        detail = client.get(f"/api/transcriptions/{transcription_id}").json()
+        linked = [speaker for speaker in detail["speakers"] if speaker["profile_id"] == profile.id]
+        assert len(linked) == int(enabled)
+        if enabled:
+            assert len(calls) == 1
+            audio_path, turns, forwarded_profiles, config = calls[0]
+            assert {turn.speaker for turn in turns} == {0, 1}
+            normalized = container.recordings.latest_for_role(meeting["id"], "normalized")
+            assert audio_path == Path(normalized.local_path)
+            assert forwarded_profiles[0].id == profile.id
+            assert forwarded_profiles[0].sample_path == str(sample)
+            assert config["_voice_match_transcription_id"] == transcription_id
+            assert linked[0]["display_name"] == profile.name
+            assert sum(segment["speaker_id"] == linked[0]["id"]
+                       for segment in detail["segments"]) == 1
+        else:
+            assert calls == []

@@ -175,6 +175,11 @@ class SherpaOnnxSpeakerProfileMatcher:
             "cache_hits": 0, "computed_fragments": 0, "audio_seconds": 0.0,
             "model_load_seconds": 0.0, "comparison_seconds": 0.0,
             "saved_profiles_seconds": 0.0, "meeting_speakers_seconds": 0.0,
+            "status": "running", "profiles_requested": len(profiles), "profiles_usable": 0,
+            "speakers": len({turn.speaker for turn in turns}), "matched": 0, "decisions": [],
+            "job_uuid": config.get("_voice_match_job_uuid"),
+            "transcription_id": config.get("_voice_match_transcription_id"),
+            "embedding_model": self._embedding_name(config),
         }
         extractor: Any = None
 
@@ -259,13 +264,25 @@ class SherpaOnnxSpeakerProfileMatcher:
                         if vector is not None:
                             known_profiles.append(profile)
                             known_vectors.append(vector)
+                        else:
+                            logger.warning(
+                                "Saved voice sample unusable: profile_id=%s "
+                                "reason=no_usable_fragments",
+                                profile.id,
+                            )
                 except JobCancelledError:
                     raise
                 except Exception as error:
                     logger.warning("Skipping saved voice %s: %s", profile.id, error)
             profiles_finished = time.monotonic()
             stats["saved_profiles_seconds"] = profiles_finished - started
+            stats["profiles_usable"] = len(known_profiles)
             if not known_profiles:
+                stats["status"] = "no_usable_profiles"
+                logger.warning(
+                    "Saved voice matching has no usable profiles: requested=%d usable=0",
+                    len(profiles),
+                )
                 report(1.0, "No usable saved voice samples; keeping speaker labels")
                 return {}
             threshold = float(config.get("profile_match_threshold", 0.72))
@@ -287,7 +304,10 @@ class SherpaOnnxSpeakerProfileMatcher:
                     vectors = vectors_for(audio, cache, str(speaker),
                                           ranges[:INITIAL_FRAGMENTS], notice)
                     before = time.monotonic()
-                    winner, ambiguous = identify(vectors, known_vectors, threshold)
+                    decision: dict[str, Any] = {}
+                    winner, ambiguous = identify(
+                        vectors, known_vectors, threshold, diagnostics=decision,
+                    )
                     stats["comparison_seconds"] += time.monotonic() - before
                     if ambiguous and len(ranges) > INITIAL_FRAGMENTS:
                         report(0.3 + 0.65 * (index + 0.5) / len(speakers),
@@ -299,18 +319,45 @@ class SherpaOnnxSpeakerProfileMatcher:
                                                        count + INITIAL_FRAGMENTS),
                         )
                         before = time.monotonic()
-                        winner, _ = identify(vectors, known_vectors, threshold)
+                        winner, _ = identify(
+                            vectors, known_vectors, threshold, diagnostics=decision,
+                        )
                         stats["comparison_seconds"] += time.monotonic() - before
                     if winner is not None:
                         matches[speaker] = known_profiles[winner]
+                    candidate = decision.pop("best_profile_index")
+                    decision.update(
+                        speaker=speaker,
+                        candidate_profile_id=(
+                            known_profiles[candidate].id if candidate is not None else None
+                        ),
+                        matched_profile_id=(
+                            known_profiles[winner].id if winner is not None else None
+                        ),
+                    )
+                    stats["decisions"].append(decision)
+                    logger.info(
+                        "Saved voice decision: job=%s transcription=%s speaker=%s "
+                        "candidate_profile_id=%s "
+                        "matched_profile_id=%s reason=%s score=%s threshold=%.3f gap=%s "
+                        "votes=%s/%s fragments=%d",
+                        stats["job_uuid"], stats["transcription_id"], speaker,
+                        decision["candidate_profile_id"], decision["matched_profile_id"],
+                        decision["reason"], decision.get("best_score"), threshold,
+                        decision.get("gap"), decision.get("votes"), decision.get("required_votes"),
+                        decision["fragments"],
+                    )
             stats["meeting_speakers_seconds"] = time.monotonic() - profiles_finished
+            stats.update(status="completed", matched=len(matches))
             report(1.0, f"Voice matching complete · {len(matches)}/{len(speakers)} identified")
             return matches
         except JobCancelledError as error:
             failure = error
+            stats["status"] = "cancelled"
             raise
         except Exception as error:
             failure = error
+            stats["status"] = "error"
             logger.warning("Saved voice matching skipped: %s", error)
             return {}
         finally:
@@ -324,6 +371,14 @@ class SherpaOnnxSpeakerProfileMatcher:
                         stats["audio_seconds"], stats["model_load_seconds"],
                         stats["comparison_seconds"], stats["saved_profiles_seconds"],
                         stats["meeting_speakers_seconds"])
+            logger.info(
+                "Saved voice matching summary: job=%s transcription=%s status=%s "
+                "requested=%d usable=%d "
+                "speakers=%d matched=%d",
+                stats["job_uuid"], stats["transcription_id"], stats["status"],
+                stats["profiles_requested"], stats["profiles_usable"],
+                stats["speakers"], stats["matched"],
+            )
             self._request_finished(failure)
 
     def _create_extractor(self, config: dict[str, Any]) -> Any:

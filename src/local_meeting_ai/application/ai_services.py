@@ -37,6 +37,7 @@ from local_meeting_ai.plugins.contracts import (
 )
 from local_meeting_ai.plugins.manager import PluginManager
 
+from .saved_speaker_matching import match_saved_speakers
 from .speaker_text import speaker_turn_text
 
 logger = logging.getLogger(__name__)
@@ -285,24 +286,14 @@ class DiarizationService:
             cast(ProgressReporter, progress),
             is_cancelled,
         )
-        recognized: dict[int, Any] = {}
-        profiles = [item for item in self.speaker_profiles.list() if item.sample_path]
-        if (
-            config["recognize_saved_speakers"]
-            and self.profile_matcher is not None
-            and profiles
-        ):
-            await context.update(0.91, "Matching saved voice profiles")
-            recognized = await self.profile_matcher.match(
-                Path(recording.local_path),
-                turns,
-                profiles,
-                config,
-                progress=lambda value, message: self.jobs.update_progress(
-                    job.uuid, 0.91 + 0.025 * value, message,
-                ),
-                is_cancelled=is_cancelled,
-            )
+        recognized = await match_saved_speakers(
+            Path(recording.local_path), turns, config, self.speaker_profiles, self.profile_matcher,
+            job_uuid=job.uuid, transcription_id=transcription.id,
+            progress=lambda value, message: self.jobs.update_progress(
+                job.uuid, 0.91 + 0.025 * value, message,
+            ),
+            is_cancelled=is_cancelled,
+        )
         if is_cancelled():
             raise JobCancelledError("Diarization was cancelled")
         await context.update(0.94, "Assigning speakers to transcript segments")
@@ -318,6 +309,7 @@ class DiarizationService:
             "speaker_count": len({turn.speaker for turn in turns}),
             "turn_count": len(turns),
             "assigned_segments": assigned,
+            "matched_speaker_count": len(recognized),
         }
 
 

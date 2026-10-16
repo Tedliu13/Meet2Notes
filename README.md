@@ -556,6 +556,14 @@ Progress and cancellation remain available during extraction; logs include cache
 hits, processed audio duration and timings for saved voices, meeting speakers,
 model loading and comparisons.
 
+Both separate diarization and transcription engines that supply speaker turns
+load saved WAV identities through the same matcher. The job result includes
+`matched_speaker_count`. Logs correlate the job/transcription IDs with saved and
+usable profile counts and each speaker's acceptance reason, cosine score,
+runner-up gap and fragment votes. They contain profile IDs rather than names,
+audio, embeddings or transcript text. Timing/cache hits alone establish that
+matching ran; they do not establish that a match passed. Thresholds are unchanged.
+
 Install **NVIDIA Nemotron 3 Diarization** from **Settings → Speakers → Install**,
 then select it and choose CPU or CUDA. Its model is about 400 MB; a private Python
 runtime adds dependencies and reuses compatible packages from the application

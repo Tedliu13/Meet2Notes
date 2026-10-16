@@ -154,6 +154,20 @@ Migration 在啟動時由 `MigrationRunner.apply()` 執行編號 SQL，已套用
 
 「記住此聲紋」視窗儲存時顯示進度；成功後才關閉，失敗可重試。儲存已成功而畫面更新失敗會分別提示，避免重複提交。可在「講者」頁面的「已儲存的聲紋」確認姓名及播放樣本；按鈕停用本身不能證明儲存成功或失敗。前端變更需要部署最新 commit 並重新載入頁面。
 
+自動聲紋比對會從 SQLite 讀取有 `sample_path` 的已儲存人物，以目前 embedding 模型讀取其 WAV 或有效快取，再與會議中各講者的獨立發言片段比對；接受後同時寫入人物 `profile_id` 與姓名。一般 diarization 與轉錄引擎直接提供 speaker turns 的路徑現在共用此流程，後者不會再因略過獨立辨識而漏掉聲紋比對。可由工作 result 的 `matched_speaker_count` 確認套用了幾位講者；這是講者群數，同一人物可能對應多群。
+
+`Voice matching` 的 cached/computed 計算的是片段數，不是人物數；有比較耗時也不代表有通過門檻。新版新增 `Saved voice matching started`、`Saved voice decision`、`Saved voice matching summary` 及 `Saved voice matching not run`，用 job UUID 與 transcription ID 對應工作，列出樣本數、有效聲紋數與命中數。每位講者記錄候選／接受人物 ID、相似度 score、threshold、與第二候選的 gap，以及通過片段票數 votes／required_votes，不記錄姓名、原始音訊、embedding 向量或逐字稿。`/api/capabilities` 的 `diarization.speaker_profile_matcher.last_match` 也提供最近一輪統計，並非歷史紀錄。
+
+拒絕原因：`below_threshold` 為相似度不足，`ambiguous_profiles` 為兩位候選過於接近，`fragment_disagreement` 為多個片段不一致，`no_usable_fragments` 為有效獨立語音不足，`no_usable_profiles` 表示已儲存樣本全無法使用。未執行則列出 `recognition_disabled`、`no_saved_profiles`、`no_saved_sample_paths` 或 `matcher_unavailable` 等原因。現有預設仍要求 cosine ≥ 0.72、前兩名差距 ≥ 0.04、至少 60% 片段支持；未降低門檻，也不把相同姓名當成聲音相同的證據。重複保存同一人的聲音為不同人物，可能因候選過近而拒絕自動套用。
+
+部署新版 image 後，以含已儲存人物的測試會議執行一次重建講者辨識，再於應用容器 Terminal 取得：
+
+```sh
+grep -E 'Saved voice|Skipping saved voice|Voice matching' /data/logs/meet2notes.log | tail -n 100
+```
+
+無須新增環境變數、migration、重下載既有模型或刪除聲紋快取／volumes。重建會重新分群並改寫講者，請先記錄人工命名與人物連結；逐字稿文字及會議摘要不重新生成。正式 VM 的音訊品質及跨會議辨識率仍需管理者實測，合成 embedding 測試不代表真實辨識準確度。
+
 ### LiteLLM 初始化與錯誤日誌
 
 Hosted 啟動在工作佇列之前同步初始化已安裝的 LiteLLM，減少摘要／RAG worker 與 asyncio 日誌同時匯入模組造成 `_ModuleLock` deadlock 的機會；載入失敗會保留 traceback，其他功能仍可啟動。此修正沒有更換 LiteLLM 版本，不代表外部 API 連線已驗證。

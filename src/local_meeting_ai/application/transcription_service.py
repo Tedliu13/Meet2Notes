@@ -28,16 +28,24 @@ from local_meeting_ai.domain.errors import (
     NotFoundError,
     ValidationError,
 )
-from local_meeting_ai.domain.protocols import AudioNormalizer, TranscriptionEngine
+from local_meeting_ai.domain.protocols import (
+    AudioNormalizer,
+    SpeakerProfileMatcher,
+    TranscriptionEngine,
+)
 from local_meeting_ai.infrastructure.database.repositories import (
     JobRepository,
     MeetingRepository,
     RecordingRepository,
     SettingsRepository,
+    SpeakerProfileRepository,
     TranscriptionRepository,
 )
 from local_meeting_ai.infrastructure.jobs import JobContext, LocalJobQueue
 from local_meeting_ai.infrastructure.storage import MeetingStorage
+
+from .ai_services import DIARIZATION_DEFAULTS, configured_values
+from .saved_speaker_matching import match_saved_speakers
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +64,8 @@ class TranscriptionService:
         profiles: TranscriptionProfileCatalog,
         preferences: SettingsRepository,
         queue: LocalJobQueue,
+        speaker_profiles: SpeakerProfileRepository | None = None,
+        profile_matcher: SpeakerProfileMatcher | None = None,
     ) -> None:
         self.meetings = meetings
         self.recordings = recordings
@@ -67,6 +77,8 @@ class TranscriptionService:
         self.profiles = profiles
         self.preferences = preferences
         self.queue = queue
+        self.speaker_profiles = speaker_profiles
+        self.profile_matcher = profile_matcher
 
     def capability(self) -> dict[str, Any]:
         return self.engine.capability()
@@ -448,18 +460,27 @@ class TranscriptionService:
             if not completed:
                 raise NotFoundError("The transcription no longer exists")
             assigned_segments = 0
+            recognized: dict[int, Any] = {}
             if result.speaker_turns:
-                diarization = self.preferences.get_all().get("diarization")
-                minimum_overlap_ratio = (
-                    float(diarization.get("minimum_overlap_ratio", 0.15))
-                    if isinstance(diarization, dict)
-                    else 0.15
+                diarization = configured_values(
+                    self.preferences, "diarization", DIARIZATION_DEFAULTS,
                 )
+                recognized = await match_saved_speakers(
+                    Path(normalized.local_path), result.speaker_turns, diarization,
+                    self.speaker_profiles, self.profile_matcher,
+                    job_uuid=job.uuid, transcription_id=transcription_id,
+                    progress=lambda value, message: self.jobs.update_progress(
+                        job.uuid, 0.965 + 0.02 * value, message,
+                    ),
+                    is_cancelled=is_cancelled,
+                )
+                await context.raise_if_cancelled()
                 assigned_segments = self.transcriptions.assign_diarization(
                     meeting_id=completed.meeting_id,
                     transcription_id=transcription_id,
                     diarization=result.speaker_turns,
-                    minimum_overlap_ratio=minimum_overlap_ratio,
+                    minimum_overlap_ratio=float(diarization["minimum_overlap_ratio"]),
+                    recognized_profiles=recognized,
                 )
             return {
                 "transcription_id": transcription_id,
@@ -472,6 +493,7 @@ class TranscriptionService:
                     {turn.speaker for turn in result.speaker_turns}
                 ),
                 "assigned_segments": assigned_segments,
+                "matched_speaker_count": len(recognized),
             }
         except JobCancelledError:
             self.transcriptions.set_status(transcription_id, "cancelled")

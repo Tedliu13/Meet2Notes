@@ -210,3 +210,68 @@ def test_corrupted_cache_rebuilds_without_trusting_vectors(tmp_path):
     payload["entries"]["test"] = [0., 1.]
     voiceprint_cache_path(audio).write_text(json.dumps(payload))
     assert VoiceprintCache(audio, "model").entries == {}
+
+
+def test_matching_reports_loaded_profiles_and_applied_identity(fixture, caplog):
+    matcher, _, _, profile, recording, turns = fixture
+    with caplog.at_level("INFO"):
+        assert matcher._match_sync(recording, turns, [profile], {
+            "_voice_match_job_uuid": "match-job", "_voice_match_transcription_id": 7,
+        }) == {0: profile}
+    stats = matcher.capability()["last_match"]
+    assert stats["profiles_requested"] == stats["profiles_usable"] == stats["matched"] == 1
+    assert stats["decisions"][0]["matched_profile_id"] == profile.id
+    assert stats["decisions"][0]["reason"] == "matched"
+    assert "job=match-job transcription=7" in caplog.text
+    assert "matched_profile_id=1" in caplog.text
+
+
+def test_missing_sample_is_reported_and_does_not_block_healthy_profiles(fixture, tmp_path):
+    matcher, _, _, profile, recording, turns = fixture
+    missing = SimpleNamespace(id=2, sample_path=str(tmp_path / "missing.wav"))
+    assert matcher._match_sync(recording, turns, [missing, profile], {}) == {0: profile}
+    stats = matcher.capability()["last_match"]
+    assert stats["profiles_requested"] == 2
+    assert stats["profiles_usable"] == 1
+    assert stats["matched"] == 1
+    assert matcher._match_sync(recording, turns, [missing], {}) == {}
+    assert matcher.capability()["last_match"]["status"] == "no_usable_profiles"
+
+
+def test_low_similarity_is_distinguished_from_not_loading_profiles(fixture):
+    matcher, _, compute, profile, recording, turns = fixture
+    compute.side_effect = [np.array([1., 0.])] * 5 + [np.array([0., 1.])] * 5
+    assert matcher._match_sync(recording, turns, [profile], {}) == {}
+    stats = matcher.capability()["last_match"]
+    assert stats["profiles_usable"] == 1
+    assert stats["decisions"][0]["reason"] == "below_threshold"
+    assert stats["decisions"][0]["best_score"] == 0
+    assert stats["decisions"][0]["candidate_profile_id"] == profile.id
+
+
+def test_duplicate_voice_candidates_are_reported_as_ambiguous(fixture, tmp_path):
+    matcher, _, _, profile, recording, turns = fixture
+    duplicate = SimpleNamespace(id=2, sample_path=str(make_wave(tmp_path / "duplicate.wav")))
+    assert matcher._match_sync(recording, turns, [profile, duplicate], {}) == {}
+    decision = matcher.capability()["last_match"]["decisions"][0]
+    assert decision["reason"] == "ambiguous_profiles"
+    assert decision["gap"] == 0
+    assert decision["matched_profile_id"] is None
+
+
+def test_short_speech_reports_no_usable_fragments(fixture):
+    matcher, _, _, profile, recording, _ = fixture
+    assert matcher._match_sync(recording, [DiarizationSegment(0, 1000, 0)], [profile], {}) == {}
+    decision = matcher.capability()["last_match"]["decisions"][0]
+    assert decision["reason"] == "no_usable_fragments"
+    assert decision["fragments"] == 0
+
+
+def test_high_centroid_similarity_still_requires_fragment_agreement():
+    diagnostic = {}
+    vectors = [np.array([1., 0.]), np.array([0.7, 0.714]), np.array([0.7, -0.714])]
+    assert identify(vectors, [np.array([1., 0.])], 0.72, diagnostics=diagnostic)[0] is None
+    assert diagnostic["best_score"] == 1
+    assert diagnostic["reason"] == "fragment_disagreement"
+    assert diagnostic["votes"] == 1
+    assert diagnostic["required_votes"] == 2

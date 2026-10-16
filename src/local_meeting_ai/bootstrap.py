@@ -307,6 +307,9 @@ def build_container(
         profiles=speaker_profiles,
     )
     queue = LocalJobQueue(jobs, worker_count=settings.max_heavy_jobs)
+    profile_matcher = (
+        None if diarization_engine is not None else SherpaOnnxSpeakerProfileMatcher(paths.models)
+    )
     meeting_service = MeetingService(meetings, recordings, jobs, storage)
     import_service = ImportService(meetings, recordings, jobs, storage, ffmpeg, queue)
     if transcription_engine is not None:
@@ -330,6 +333,8 @@ def build_container(
         profiles=profiles,
         preferences=preferences,
         queue=queue,
+        speaker_profiles=speaker_profiles,
+        profile_matcher=profile_matcher,
     )
     resolved_capture_backend = (
         UnavailableCaptureBackend(
@@ -357,10 +362,8 @@ def build_container(
     queue.register(JobType.TRANSCRIBE, transcription_service.process)
     if diarization_engine is not None:
         resolved_diarization = diarization_engine
-        profile_matcher = None
     else:
         resolved_diarization = DiarizationEngineRouter(provider_registry)
-        profile_matcher = SherpaOnnxSpeakerProfileMatcher(paths.models)
     resolved_diarization = model_memory.wrap("diarization", resolved_diarization)
     diarization_service = DiarizationService(
         engine=resolved_diarization,
