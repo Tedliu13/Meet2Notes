@@ -16,7 +16,7 @@ function page(fetch) {
   return { nodes, destinations, submit: () => nodes['account-form'].submit({ preventDefault() {} }) };
 }
 
-test('registration sends name, username and password then opens the authenticated workspace', async () => {
+test('registration sends name, username and password then opens the meeting list', async () => {
   const calls = [];
   const { nodes, submit, destinations } = page(async (path, options) => { calls.push([path, options]); return { ok: true, json: async () => ({ id: 2 }) }; });
   nodes['choose-register'].click();
@@ -31,8 +31,14 @@ test('registration sends name, username and password then opens the authenticate
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], '/api/auth/register');
   assert.deepEqual(JSON.parse(calls[0][1].body), { username: 'alice', name: 'Alice', password: 'a-test-password-123' });
-  assert.deepEqual(destinations, ['/']);
+  assert.deepEqual(destinations, ['/meetings']);
   assert.equal(nodes['account-password'].value, '');
+});
+
+test('successful login opens the meeting list', async () => {
+  const { submit, destinations } = page(async () => ({ ok: true, json: async () => ({ id: 1 }) }));
+  await submit();
+  assert.deepEqual(destinations, ['/meetings']);
 });
 
 test('login errors stay visible and allow retry without claiming success', async () => {

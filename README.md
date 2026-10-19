@@ -1194,6 +1194,11 @@ headings, body text, lists and tables. The font must be available on the compute
 opening the file; otherwise Word substitutes an installed font. This remains the
 existing Word-compatible `.doc` export and needs no server font installation.
 
+Hosted sign-in and registration open the meeting library (`/meetings`). Opening
+the site's root also redirects there instead of selecting the latest meeting.
+Direct meeting links (`/?meeting=ID`) and the new-meeting flow (`/?new=1`) remain
+available; desktop mode keeps its existing startup behavior.
+
 ## License
 
 Meet2Notes is released under the [MIT License](LICENSE).

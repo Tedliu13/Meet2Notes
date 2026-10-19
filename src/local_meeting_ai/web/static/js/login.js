@@ -35,7 +35,7 @@
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "請檢查帳號、姓名與密碼格式");
       password.value = "";
-      location.assign("/");
+      location.assign("/meetings");
     } catch (failure) {
       error.textContent = failure.message || "暫時無法登入，請重試";
     } finally {

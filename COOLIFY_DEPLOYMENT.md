@@ -5,6 +5,10 @@
 
 ## 1. 部署與登入
 
+Hosted 登入／註冊成功後進入 `/meetings` 會議清單；直接開啟網站根網址也導向清單。
+指定會議連結 `/?meeting=ID` 與新增會議 `/?new=1` 保留原流程，桌面模式啟動行為不變。
+不新增環境變數、migration 或掛載。
+
 1. 管理者在 Coolify 建立 GitHub Application，來源 `Tedliu13/Meet2Notes`，選擇已包含本次修改的 branch／commit。
 2. Build Pack 選 **Docker Compose**，Base Directory `/`，Compose Location `/docker-compose.yaml`。
 3. 載入 Compose 後，meet2notes service 的 Domain 設為 `https://meet2notes.ncdrcc.com:8765`；`:8765` 指容器內部路由 port，使用者仍開啟不帶 port 的正式 HTTPS 網址。

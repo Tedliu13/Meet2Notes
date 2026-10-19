@@ -289,9 +289,11 @@ def _register_web_routes(app: FastAPI, templates: Jinja2Templates, container: Co
 
     @app.get("/", include_in_schema=False)
     async def dashboard(request: Request) -> object:
-        meetings = container.meeting_service.list(limit=100)
         new_meeting = request.query_params.get("new") == "1"
         requested_meeting = request.query_params.get("meeting")
+        if container.settings.hosted and not new_meeting and not requested_meeting:
+            return RedirectResponse("/meetings", status_code=303)
+        meetings = container.meeting_service.list(limit=100)
         selected_meeting = None
         if requested_meeting and not new_meeting:
             try:

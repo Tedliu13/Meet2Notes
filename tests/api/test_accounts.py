@@ -85,6 +85,25 @@ def seed_transcript(client, meeting_id):
     return transcription, speaker, segment, summary
 
 
+def test_hosted_home_opens_library_and_explicit_meeting_links_still_open_transcript(account_client):
+    client = account_client
+    assert client.get("/", follow_redirects=False).headers["location"] == "/login"
+    login(client)
+    for populated in (False, True):
+        if populated:
+            meeting = client.post("/api/meetings", json={"title": "Explicit meeting"}).json()
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/meetings"
+        assert 'id="meeting-library-list"' in client.get("/").text
+    direct = client.get(f"/?meeting={meeting['id']}")
+    assert direct.status_code == 200
+    assert f'data-meeting-id="{meeting["id"]}"' in direct.text
+    assert 'id="transcription-workspace"' in direct.text
+    assert 'id="transcription-workspace"' in client.get("/?new=1").text
+    assert client.get("/?meeting=999999").status_code == 404
+
+
 def test_registration_session_logout_and_password_storage(account_client):
     client = account_client
     assert client.get("/api/auth/me").status_code == 401
