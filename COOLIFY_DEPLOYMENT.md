@@ -270,6 +270,12 @@ M2N_MCP_AUTH_PASSWORD=<登入密碼>
 
 本次僅準備 repository，不代表正式部署完成。
 
+## AI 筆記 Word 字體
+
+工具內 AI 筆記匯出 Word 預設微軟正黑體（Microsoft JhengHei），包含標題、內文與表格。
+沿用既有 Word 相容 `.doc`，由開啟文件的電腦提供字體；容器不需安裝或打包此字體。
+不新增環境變數、migration、模型或掛載。
+
 ## 重新轉錄與部署中斷後復原
 
 Faster Whisper 轉錄開始前分別顯示模型載入、等待推論位置、音訊分析（VAD／語言偵測）及等待第一段文字。

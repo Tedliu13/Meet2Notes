@@ -2742,9 +2742,12 @@
       .join("");
   }
 
-  function htmlDocument(title, content, markdown = false) {
+  function htmlDocument(title, content, markdown = false, word = false) {
     const body = markdown ? renderMarkdown(content) : plainTextExportHtml(content);
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(title)}</title><style>body{font:12pt/1.55 Arial,sans-serif;color:#1d2939;max-width:760px;margin:48px auto;padding:0 24px}h1{font-size:20pt;margin:0 0 18pt}h2{font-size:16pt}h3{font-size:13pt}p{margin:0 0 10pt}ul,ol{margin:0 0 10pt;padding-left:24pt}blockquote{margin:0 0 10pt;padding-left:12pt;border-left:3px solid #b8cefa}table{width:100%;margin:0 0 10pt;border-collapse:collapse}th,td{padding:6pt;border:1px solid #cfd8e5;text-align:left}pre{white-space:pre-wrap}main>:first-child{margin-top:0}@media print{body{margin:0;max-width:none}}</style></head><body><h1>${escapeHTML(title)}</h1><main>${body}</main></body></html>`;
+    const wordFont = word && markdown
+      ? 'body,p,h1,h2,h3,h4,h5,h6,li,td,th,blockquote,pre,code,a,span,strong,em{font-family:"Microsoft JhengHei",sans-serif;mso-ascii-font-family:"Microsoft JhengHei";mso-fareast-font-family:"Microsoft JhengHei";mso-hansi-font-family:"Microsoft JhengHei"}'
+      : "";
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(title)}</title><style>body{font:12pt/1.55 Arial,sans-serif;color:#1d2939;max-width:760px;margin:48px auto;padding:0 24px}h1{font-size:20pt;margin:0 0 18pt}h2{font-size:16pt}h3{font-size:13pt}p{margin:0 0 10pt}ul,ol{margin:0 0 10pt;padding-left:24pt}blockquote{margin:0 0 10pt;padding-left:12pt;border-left:3px solid #b8cefa}table{width:100%;margin:0 0 10pt;border-collapse:collapse}th,td{padding:6pt;border:1px solid #cfd8e5;text-align:left}pre{white-space:pre-wrap}main>:first-child{margin-top:0}@media print{body{margin:0;max-width:none}}${wordFont}</style></head><body><h1>${escapeHTML(title)}</h1><main>${body}</main></body></html>`;
   }
 
   function openExportDialog(source, format) {
@@ -2783,7 +2786,7 @@
     } else if (format === "markdown") {
       downloadFile(exportFilename("md"), content, "text/markdown;charset=utf-8");
     } else if (format === "word") {
-      downloadFile(exportFilename("doc"), htmlDocument(draftTitle, content, source === "notes"), "application/msword;charset=utf-8");
+      downloadFile(exportFilename("doc"), htmlDocument(draftTitle, content, source === "notes", true), "application/msword;charset=utf-8");
     } else if (format === "pdf") {
       const printWindow = window.open("", "_blank");
       if (!printWindow) {

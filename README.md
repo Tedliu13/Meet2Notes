@@ -1189,6 +1189,11 @@ reads existing jobs; it never starts or replays transcription.
 Cancellation while waiting for an inference slot releases the queued request without starting it;
 this does not forcibly interrupt native model loading or an active native inference call.
 
+AI notes exported with **Utilities → Export Word** use Microsoft JhengHei for
+headings, body text, lists and tables. The font must be available on the computer
+opening the file; otherwise Word substitutes an installed font. This remains the
+existing Word-compatible `.doc` export and needs no server font installation.
+
 ## License
 
 Meet2Notes is released under the [MIT License](LICENSE).
