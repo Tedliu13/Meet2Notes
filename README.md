@@ -1199,6 +1199,16 @@ the site's root also redirects there instead of selecting the latest meeting.
 Direct meeting links (`/?meeting=ID`) and the new-meeting flow (`/?new=1`) remain
 available; desktop mode keeps its existing startup behavior.
 
+Settings → General shows data, models and cache folder file sizes alongside the
+total/used/free capacity of their filesystems and the application-visible system
+filesystem. Hosted settings remain administrator-only. Meeting library rows and
+transcription headers show the meeting folder's files (media, normalized audio,
+exports and temporary files), excluding shared database/model/voice-profile data.
+Folder sizes are cached for 60 seconds, count logical file sizes with hard links
+deduplicated, and skip symbolic links/junctions. Bounded or unreadable scans are
+marked as lower bounds. Overlapping folders and shared filesystems must not be
+added together. This does not inventory all VM disks, delete data or change mounts.
+
 ## License
 
 Meet2Notes is released under the [MIT License](LICENSE).

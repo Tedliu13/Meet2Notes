@@ -78,6 +78,9 @@
             </div>
             <div class="storage-location-row"><div><strong>Meeting data</strong><small id="storage-data-directory">Loading local folder…</small></div><button class="button secondary" type="button" data-select-folder="data">Choose folder</button></div>
             <div class="storage-location-row"><div><strong>AI models</strong><small id="storage-models-directory">Loading model folder…</small><input id="models-directory" type="hidden"></div><button class="button secondary" type="button" data-select-folder="models">Choose folder</button></div>
+            <div class="storage-usage-heading"><strong data-i18n="storage.title">Disk usage</strong><button type="button" class="button secondary" id="refresh-storage-usage" data-i18n="storage.refresh">Refresh usage</button></div>
+            <p class="storage-usage-help" data-i18n="storage.help">Folder sizes are cached for 60 seconds. Folders may overlap or share a filesystem; do not add their values together. Only storage visible to this application is shown.</p>
+            <div id="storage-usage-details" aria-live="polite"></div>
             <div class="engine-compatibility-note model-directory-note" id="models-directory-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg><span>Changing this folder moves existing downloaded models safely. Meet2Notes must restart after the move so each AI worker uses the new location.</span></div>
           </section>
           <section class="general-card">

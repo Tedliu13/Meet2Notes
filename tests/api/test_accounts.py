@@ -272,6 +272,24 @@ def test_admin_account_management_revokes_sessions_and_preserves_meetings(accoun
     assert client.patch(f"/api/users/{admin['id']}", json={"active": False}).status_code == 409
 
 
+def test_storage_overview_is_admin_only_but_meeting_sizes_are_shared(account_client):
+    client = account_client
+    login(client)
+    meeting = client.post("/api/meetings", json={"title": "Shared storage"}).json()
+    container = client.app.state.container
+    entity = container.meetings.get(meeting["id"])
+    folder = container.storage.ensure_meeting(entity.uuid)
+    (folder / "original" / "media.mp4").write_bytes(b"x" * 15)
+    assert client.get("/api/settings/storage-usage").status_code == 200
+    register(client)
+    assert client.get("/api/settings/storage-usage").status_code == 403
+    response = client.get("/api/library/storage-usage", params={"meeting_ids": meeting["id"]})
+    assert response.status_code == 200
+    item = response.json()["meetings"][0]
+    assert item["bytes"] == 15
+    assert "path" not in item
+
+
 def test_settings_blocked_and_no_privilege_or_creator_injection(account_client):
     client = account_client
     user = register(client)
@@ -279,6 +297,7 @@ def test_settings_blocked_and_no_privilege_or_creator_injection(account_client):
         "/settings",
         "/api/settings",
         "/api/settings/summary-api-key",
+        "/api/settings/storage-usage",
         "/api/users",
         "/api/webhooks",
         "/api/diagnostics/report",

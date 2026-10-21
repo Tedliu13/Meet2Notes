@@ -10,6 +10,7 @@ import aiofiles
 from local_meeting_ai.domain.entities import StoredMedia
 from local_meeting_ai.domain.errors import UploadTooLargeError, ValidationError
 from local_meeting_ai.domain.protocols import AsyncUpload
+from local_meeting_ai.infrastructure.storage_usage import StorageUsage
 from local_meeting_ai.paths import AppPaths
 
 ALLOWED_MEDIA_EXTENSIONS = {
@@ -30,6 +31,7 @@ class MeetingStorage:
     def __init__(self, paths: AppPaths, max_upload_bytes: int) -> None:
         self.paths = paths
         self.max_upload_bytes = max_upload_bytes
+        self.usage = StorageUsage()
 
     def meeting_root(self, meeting_uuid: str) -> Path:
         return self.paths.meetings / meeting_uuid

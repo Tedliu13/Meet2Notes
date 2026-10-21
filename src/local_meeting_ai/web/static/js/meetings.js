@@ -57,7 +57,7 @@
         <div class="meeting-people">${item.creator ? `<span class="person-label">建立者：${escapeHTML(item.creator.name)}</span>` : ""}${(item.managers || []).map((user) => `<span class="person-label">共同管理：${escapeHTML(user.name)}</span>`).join("")}</div>
         <div class="meeting-people">${item.can_transfer ? `<a class="text-button" href="/?meeting=${item.id}&manage=creator">修改建立者</a>` : ""}${item.can_share && document.body.dataset.hosted === "true" ? `<a class="text-button" href="/?meeting=${item.id}&manage=managers">修改共同管理者</a>` : ""}</div>
         </div>
-        <small>${escapeHTML(new Date(item.meeting_date).toLocaleString(Meet2Notes.currentLanguage, { dateStyle: "medium", timeStyle: "short" }))} · ${time(item.duration_ms)}${item.audio_deleted_at ? ` · ${t("library.audio_deleted")}` : ""}</small></div>
+        <small>${escapeHTML(new Date(item.meeting_date).toLocaleString(Meet2Notes.currentLanguage, { dateStyle: "medium", timeStyle: "short" }))} · ${time(item.duration_ms)}${item.audio_deleted_at ? ` · ${t("library.audio_deleted")}` : ""}</small><small class="meeting-storage-usage" data-meeting-usage="${item.id}"></small></div>
         <div class="library-row-actions">${item.can_manage === false ? "" : `<button type="button" class="button secondary" data-edit-tags="${item.id}" data-title="${escapeHTML(item.title)}">${t("library.edit_tags")}</button><button type="button" class="text-button danger" data-delete-meeting="${item.id}" data-title="${escapeHTML(item.title)}">${t("library.delete")}</button>`}</div></header>
         ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ""}
         ${item.matches.length ? `<div class="library-hits">${item.matches.map((hit) => `<a class="library-hit" href="/?meeting=${item.id}&segment=${hit.segment_id}"><strong>${time(hit.start_ms)} · ${escapeHTML(hit.speaker)}</strong>${highlight(hit.text)}</a>`).join("")}</div>` : ""}
@@ -65,6 +65,7 @@
       document.querySelector("#library-page").textContent = result.total ? `${offset + 1}–${Math.min(offset + limit, result.total)} / ${result.total}` : "0 / 0";
       previous.disabled = offset === 0;
       next.disabled = offset + limit >= result.total;
+      void Meet2Notes.storageUsage?.refreshMeetings(list);
     } catch (error) {
       if (id !== requestId) return;
       list.innerHTML = `<div class="library-message" role="alert">${escapeHTML(error.message)} <button type="button" class="button secondary" id="library-retry">${t("library.retry")}</button></div>`;

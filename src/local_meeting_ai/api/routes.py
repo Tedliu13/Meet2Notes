@@ -360,6 +360,44 @@ def info(container: ContainerDependency) -> dict[str, Any]:
     }
 
 
+@router.get("/settings/storage-usage")
+def settings_storage_usage(container: ContainerDependency) -> dict[str, Any]:
+    usage = container.storage.usage
+    locations = {
+        "data": container.paths.root,
+        "models": container.paths.models,
+        "cache": Path(os.environ.get("XDG_CACHE_HOME") or container.paths.cache),
+    }
+    system = Path(os.environ.get("SYSTEMDRIVE", "C:") + os.sep) if os.name == "nt" else Path("/")
+    return {
+        "directories": [
+            {"name": name, "path": str(path), **usage.directory(path),
+             "filesystem": usage.filesystem(path)}
+            for name, path in locations.items()
+        ],
+        "system": {"path": str(system), **usage.filesystem(system)},
+        "cache_seconds": usage.ttl,
+    }
+
+
+@router.get("/library/storage-usage")
+def meeting_storage_usage(
+    container: ContainerDependency,
+    meeting_ids: Annotated[list[int] | None, Query(max_length=100)] = None,
+) -> dict[str, Any]:
+    items = []
+    for meeting_id in sorted(set(meeting_ids or [])):
+        meeting = container.meetings.get(meeting_id)
+        if meeting is not None:
+            items.append({
+                "id": meeting.id,
+                **container.storage.usage.directory(
+                    container.storage.meeting_root(meeting.uuid), budget=0.1,
+                ),
+            })
+    return {"meetings": items, "cache_seconds": container.storage.usage.ttl}
+
+
 @router.post("/storage/{location}/select")
 def select_storage_location(location: str, container: ContainerDependency) -> dict[str, str | None]:
     paths = {"data": container.paths.root, "models": container.paths.models}

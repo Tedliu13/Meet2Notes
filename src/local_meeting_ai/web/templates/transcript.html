@@ -54,6 +54,7 @@
 
       <div class="transcription-tag-bar hidden" id="transcription-tags"><div class="meeting-tags" id="current-meeting-tags"></div></div>
       <div id="meeting-people" class="meeting-people" aria-live="polite"></div>
+      <small class="meeting-storage-usage" data-meeting-usage="{{ meeting.id if meeting else '' }}"></small>
       <button type="button" class="text-button hidden" data-meeting-write id="edit-meeting-tags">Edit tags</button>
       </div>
       <div class="transcription-primary-actions">
