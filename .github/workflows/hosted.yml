@@ -27,6 +27,7 @@ jobs:
           PY
       - run: docker compose config --quiet
       - run: docker compose -f docker-compose.storage.yaml config --quiet
+      - run: docker compose -f docker-compose.storage-local.yaml config --quiet
       - run: docker compose build meet2notes
       - name: Decode audio with the installed transcription dependencies
         run: |

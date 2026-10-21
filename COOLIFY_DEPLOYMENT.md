@@ -318,6 +318,16 @@ Faster Whisper 轉錄開始前分別顯示模型載入、等待推論位置、�
 關閉瀏覽器仍會繼續處理；重新部署可能中斷推論，因此應等候工作完成再部署。
 此功能沿用既有 jobs、transcriptions 與原始檔，不新增 migration、環境變數或儲存掛載。
 
+### Docker Hub 中斷時的暫時遷移方式
+
+若離線複製已顯示 `VERIFIED`，但 Docker Hub 連線逾時，可依
+[遷移文件](STORAGE_MIGRATION.md#docker-hub-中斷時重用主機既有-image)
+使用 `docker-compose.storage-local.yaml`。此檔無 build、設定 `pull_policy: never`，
+固定使用本次主機已確認存在的舊版 image；保留掛載、啟動驗證、runtime variables
+與權限限制。不修改主機 Docker、Proxy 或防火牆，也不直接在主機啟動應用。
+這是暫時恢復方式，推送程式碼不會更新 image 內的應用；網路恢復後須切回
+`docker-compose.storage.yaml` 並建置部署。Coolify helper 與 Git 存取仍可能需要網路。
+
 ## 9. 本次驗證結果（2026-10-05）
 
 - API、migration、storage、paths 與加密 credential 這輪測試：85 passed、1 deselected。

@@ -1216,6 +1216,10 @@ The existing `docker-compose.yaml` keeps its original volumes. Only select
 backed up, copied and verified all three directories. The alternate Compose
 refuses missing host paths, missing verification markers and a missing database.
 It does not change Docker's storage root, proxy configuration or other applications.
+If Docker Hub is unreachable during cutover, the runbook also describes
+`docker-compose.storage-local.yaml`, which reuses the confirmed local image with
+`pull_policy: never`. This temporary mode runs the old application commit;
+repository code updates require returning to the normal storage Compose build.
 
 ## License
 

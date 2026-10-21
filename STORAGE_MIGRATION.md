@@ -73,6 +73,38 @@ sudo python3 -u ~/migrate_coolify_storage.py verify --container CONTAINER_ID
 
 如果 Coolify 仍另外列出舊 persistent storage，不刪除舊 volumes。檢查產生的 Compose，確保每個 `/data`、`/models`、`/cache` 只出現一次掛載，且 source 是上述核准主機路徑。
 
+### Docker Hub 中斷時重用主機既有 image
+
+2026-10-22 已確認 VM 上存在以下 image，內容為遷移前正常使用的應用版本：
+
+```text
+9fusshae9rh2rgjkgtxstd2z_meet2notes:3fd006bd4611916946629a94a0e0ef0d4d7e4413
+sha256:9751e4880475ef39be0c6e5c01a15d24c4bb26d2957ba21ad6b947e19a393f18
+```
+
+僅在複製已通過 `VERIFIED` 且尚未有新版應用修改目的資料庫時使用。這次遷移
+提交僅涉及部署與文件，不需要新應用程式碼；不要將這個固定舊 image 當作日後升級方式。
+
+1. 管理者在主機確認上述 tag 的 `docker image inspect --format '{{.Id}}' IMAGE`
+   結果仍為上述 SHA-256；不符即停止。不要清理這個 image 或舊 volumes。
+2. 將此 repository 的新檔案提交／推送（代理 push 仍須授權），保持自動部署暫停。
+3. 在原 Coolify resource 將 Compose Location 設成 `/docker-compose.storage-local.yaml`，
+   不另建 resource、不使用 Docker Image build pack、不更動既有 domain 或 runtime secrets。
+4. 本檔沒有 `build`，並設 `pull_policy: never`，只使用本機快取。檢查 Coolify
+   產生的 Compose 確實保留這兩項設定、原 image tag、三個唯一 bind mounts 與啟動 guard。
+   若曾設定自訂 Compose build/start commands，先記錄並移除其中強制 pull/build 的選項。
+   不使用 Force rebuild。管理者手動部署；如果 log 仍顯示拉取應用 image／建置 Python
+   base image，停止重試並貼回 log，不要改掛載或繞過 guard。
+5. 使用以下上線驗證步驟核對帳號、資料筆數與檔案。應用 image 無須拉取，但 Coolify
+   的 helper image、Git checkout 等仍可能需要網路，不能保證整個部署完全離線。
+6. 網路修復後，切回 `/docker-compose.storage.yaml` 建置部署。兩個設定都使用同一組
+   新 bind mounts，因此回到正常建置不需重新複製資料。不可切回使用舊 named volumes
+   的 `/docker-compose.yaml`，避免遺失遷移後新增的資料。
+
+三個掛載均為 `type: bind`、`read_only: false`：
+`/data/meet2notes/data -> /data`、`/data/meet2notes/models -> /models`、
+`/data/meet2notes/cache -> /cache`。無 host ports、Docker socket、privileged 或 host network。
+
 ## 4. 上線驗證
 
 部署後重新找出新容器 ID，以 `NEW_CONTAINER_ID` 代入：

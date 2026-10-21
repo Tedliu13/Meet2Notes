@@ -179,6 +179,19 @@ def test_compose_cutover_is_separate_and_requires_preverified_host_directories()
     assert "app.db" in guard
 
 
+def test_local_image_recovery_preserves_cutover_guards_and_runtime_settings():
+    normal = yaml.safe_load((REPO / "docker-compose.storage.yaml").read_text())
+    local = yaml.safe_load((REPO / "docker-compose.storage-local.yaml").read_text())
+    expected = normal["services"]["meet2notes"].copy()
+    expected.pop("build")
+    expected["image"] = (
+        "9fusshae9rh2rgjkgtxstd2z_meet2notes:"
+        "3fd006bd4611916946629a94a0e0ef0d4d7e4413"
+    )
+    expected["pull_policy"] = "never"
+    assert local == {"services": {"meet2notes": expected}}
+
+
 @pytest.mark.parametrize("state", ["missing", "wrong_resource", "no_database", "verified"])
 def test_startup_guard_refuses_an_empty_or_unverified_workspace(tmp_path, state):
     compose = yaml.safe_load((REPO / "docker-compose.storage.yaml").read_text())
