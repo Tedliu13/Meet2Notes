@@ -4,7 +4,7 @@
 
 - 正式網域為 `https://meet2notes.ncdrcc.com`（使用者指定，取代平台通用 apps 網域）。
 - 部署於無 GPU 的共用 VM；Coolify 管理介面為 `https://deploy.ncdrcc.com`，公開流量經既有 Traefik 80/443。
-- Docker root `/data/docker` 與 Coolify `/data/coolify` 位於 14 TB SSD；不得修改主機 Docker、代理、防火牆或安裝另一套代理。
+- 2026-10-21 主機查詢確認 Docker root 實際為 `/var/lib/docker`（120 GB 系統碟）；大容量 XFS 磁碟掛在主機 `/data`，約 14 TB。原平台規劃 `/data/docker` 不代表已生效。本次不得修改主機 Docker、代理、防火牆或安裝另一套代理。
 - 僅修改、測試 repository。不得登入正式 VM 或直接部署。正式部署由管理者操作 Coolify 或已設定的 GitHub webhook 觸發；push 前確認使用者授權。
 - 不要求管理帳密、SSH key 或 Docker socket 權限。不得提交 secrets。
 
@@ -31,6 +31,7 @@
 - 維持桌面模式相容性，Hosted 行為以設定開關隔離。
 - Web 監聽 `0.0.0.0:8765`，只 expose，不映射 host ports。
 - 優先 named volumes，頂層明確宣告；禁止 privileged、host network、Docker socket 或未經核准的 host bind mounts。不得 chmod 777。
+- 使用者於 2026-10-21 授權只遷移 Meet2Notes：主機 `/data/meet2notes/data`、`/data/meet2notes/models`、`/data/meet2notes/cache` 分別掛載至容器 `/data`、`/models`、`/cache`，皆可寫。僅此三個 bind mounts 例外獲准；不授權其他主機掛載或整機 Docker root 搬移。預設 Compose 保留原 volumes，管理者完成停機備份、複製、SHA-256／SQLite 驗證後，才切換至 `docker-compose.storage.yaml`；不可自動建立空主機目錄或初始化新資料庫。舊 volumes 必須保留。
 - 密鑰僅由 Coolify runtime variables 注入。加密密鑰需獨立備份，不能存於 Git、image 或模型。
 - 更新 `.env.example`、README、`COOLIFY_DEPLOYMENT.md`；文件涵蓋 build/start、storage、health、migration、資源、備份與還原。
 - 執行相關單元／API／前端測試、lint、Docker build 與 `docker compose config`；工具不可用時明確列出未驗證事項，不宣稱成功。

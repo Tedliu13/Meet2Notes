@@ -5,6 +5,12 @@
 
 ## 1. 部署與登入
 
+### 已核准的單一專案儲存遷移
+
+2026-10-21 主機確認：DockerRootDir=/var/lib/docker，Meet2Notes 原 named volumes 位於約 113 GiB 的系統檔案系統，主機 `/data` 則為約 14 TB XFS。使用者已授權僅此專案的三個 bind mounts：`/data/meet2notes/data → /data`、`/data/meet2notes/models → /models`、`/data/meet2notes/cache → /cache`，type=bind、read_only=false。
+請依 [STORAGE_MIGRATION.md](STORAGE_MIGRATION.md) 先檢查、等待工作結束、停機備份／複製／驗證，再將 Coolify Compose Location 切換為 `/docker-compose.storage.yaml`。預設 `/docker-compose.yaml` 未切換，避免自動部署提前使用新路徑。新設定禁止自動建立缺少的 host 目錄，且需三份驗證標記與既有 app.db 才啟動。
+維持原有 runtime secrets、8765 expose 與資源限制；不新增 secret、host port、privileged、host network 或 Docker socket。容器 `/` 仍可顯示系統碟容量，data/models/cache 應改顯示大磁碟容量。舊 volumes 不刪除，回復前必須確認切換後是否已有新寫入。
+
 Hosted 登入／註冊成功後進入 `/meetings` 會議清單；直接開啟網站根網址也導向清單。
 指定會議連結 `/?meeting=ID` 與新增會議 `/?new=1` 保留原流程，桌面模式啟動行為不變。
 不新增環境變數、migration 或掛載。

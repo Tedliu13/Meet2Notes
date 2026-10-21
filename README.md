@@ -1209,6 +1209,14 @@ deduplicated, and skip symbolic links/junctions. Bounded or unreadable scans are
 marked as lower bounds. Overlapping folders and shared filesystems must not be
 added together. This does not inventory all VM disks, delete data or change mounts.
 
+For the approved NCDRCC migration from system-disk volumes to the large `/data`
+disk, follow [the offline storage migration runbook](STORAGE_MIGRATION.md).
+The existing `docker-compose.yaml` keeps its original volumes. Only select
+`docker-compose.storage.yaml` in Coolify after the administrator-run tool has
+backed up, copied and verified all three directories. The alternate Compose
+refuses missing host paths, missing verification markers and a missing database.
+It does not change Docker's storage root, proxy configuration or other applications.
+
 ## License
 
 Meet2Notes is released under the [MIT License](LICENSE).
