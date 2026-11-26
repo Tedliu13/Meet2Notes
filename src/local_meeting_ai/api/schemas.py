@@ -88,6 +88,18 @@ class JobResponse(BaseModel):
     completed_at: str | None
     cancel_requested: bool
 
+    @field_validator("payload")
+    @classmethod
+    def hide_private_format_snapshot(cls, value: dict[str, Any]) -> dict[str, Any]:
+        # Shared job/event views must not expose a personal format's prompts.
+        result = {key: item for key, item in value.items() if key != "summary_template"}
+        if isinstance(result.get("postprocess_options"), dict):
+            result["postprocess_options"] = {
+                key: item for key, item in result["postprocess_options"].items()
+                if key != "summary_template_snapshot"
+            }
+        return result
+
 
 class ImportResponse(BaseModel):
     recording: RecordingResponse
@@ -492,6 +504,7 @@ class SummaryTemplateWrite(BaseModel):
     system_prompt: str = Field(min_length=1, max_length=4000)
     user_prompt_template: str = Field(min_length=1, max_length=4000)
     sections: list[SummaryTemplateSection] = Field(min_length=1, max_length=20)
+    scope: Literal["personal", "shared"] = "personal"
 
 
 class SummaryTemplateResponse(SummaryTemplateWrite):
@@ -500,6 +513,9 @@ class SummaryTemplateResponse(SummaryTemplateWrite):
     is_default: bool = False
     created_at: str
     updated_at: str
+    owner_id: int | None = None
+    owner_name: str | None = None
+    can_edit: bool = False
 
 
 class ModelProfileResponse(BaseModel):

@@ -1,0 +1,16 @@
+.nf-page { padding: 24px; background: var(--panel, #fff); border: 1px solid var(--border, #dbe3ef); border-radius: 16px; }
+.nf-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.nf-toolbar p { flex: 1; min-width: 200px; }
+.nf-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; margin: 18px 0 28px; }
+.nf-card { padding: 18px; border: 1px solid var(--border, #dbe3ef); border-radius: 12px; }
+.nf-card h3 { margin: 0 0 10px; overflow-wrap: anywhere; }
+.nf-card p { overflow-wrap: anywhere; }
+.nf-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.nf-dialog { width: min(760px, calc(100vw - 32px)); max-height: 90vh; padding: 0; }
+.nf-dialog .modal-panel { max-height: 88vh; overflow-y: auto; }
+.nf-field { display: grid; gap: 6px; margin: 12px 0; }
+.nf-field input, .nf-field textarea, .nf-field select { width: 100%; box-sizing: border-box; }
+.nf-section { border: 1px solid var(--border, #dbe3ef); padding: 14px; border-radius: 10px; margin: 10px 0; }
+#nf-error { color: var(--danger, #b42318); }
+.nf-empty { color: var(--muted, #64748b); }
+[data-theme="dark"] :is(.nf-page, .nf-card, .nf-section) { background: #151d29; border-color: #344054; color: #e7edf7; }

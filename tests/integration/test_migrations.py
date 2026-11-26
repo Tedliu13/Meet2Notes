@@ -11,7 +11,7 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
     database = Database(tmp_path / "migration.db")
     runner = MigrationRunner(database)
 
-    assert runner.apply() == list(range(1, 16))
+    assert runner.apply() == list(range(1, 17))
     assert runner.apply() == []
 
     with database.read() as connection:
@@ -79,7 +79,12 @@ def test_library_upgrade_preserves_existing_meetings_and_search(tmp_path: Path) 
         connection.execute("""INSERT INTO transcript_segments
             (transcription_id, segment_index, start_ms, end_ms, text)
             VALUES (1, 0, 0, 1000, 'Preserved launch decision')""")
-    assert runner.apply() == [13, 14, 15]
+        connection.execute("""INSERT INTO summary_templates
+            (id, name, system_prompt, user_prompt_template, output_schema_json,
+             is_builtin, created_at, updated_at)
+            VALUES (42, 'Existing custom format', 'Keep system prompt', 'Keep task', '[]',
+                    0, '2026-01-01', '2026-01-01')""")
+    assert runner.apply() == [13, 14, 15, 16]
     assert runner.apply() == []
     from local_meeting_ai.infrastructure.database.repositories import MeetingRepository
 
@@ -93,3 +98,6 @@ def test_library_upgrade_preserves_existing_meetings_and_search(tmp_path: Path) 
     assert library.search(tag_id=tag["id"])["total"] == 1
     with database.read() as connection:
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        template = connection.execute("SELECT * FROM summary_templates WHERE id=42").fetchone()
+        assert template["owner_id"] is None
+        assert template["system_prompt"] == "Keep system prompt"

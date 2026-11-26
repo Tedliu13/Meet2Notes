@@ -307,6 +307,7 @@ class SummaryTemplate:
     is_builtin: bool
     created_at: str
     updated_at: str
+    owner_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

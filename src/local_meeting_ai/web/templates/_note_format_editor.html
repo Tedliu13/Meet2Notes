@@ -1,0 +1,14 @@
+<dialog id="nf-editor" class="modal nf-dialog">
+  <form id="nf-form" class="modal-panel">
+    <div class="modal-header"><h2 id="nf-editor-title" data-i18n="nf.new">New format</h2><button type="button" class="icon-button" data-nf-close aria-label="Close" data-i18n-aria-label="common.close">×</button></div>
+    <p data-i18n="nf.editor_help">Save a personal format. Copy a shared format to customize it without changing other users' formats.</p>
+    <label class="nf-field"><span data-i18n="nf.name">Name</span><input name="name" maxlength="120" required></label>
+    <label class="nf-field"><span data-i18n="nf.description">Description</span><input name="description" maxlength="500"></label>
+    <label class="nf-field"><span data-i18n="nf.instruction">General AI instruction</span><textarea name="system_prompt" rows="3" maxlength="4000" required></textarea></label>
+    <label class="nf-field"><span data-i18n="nf.task">Summary task</span><textarea name="user_prompt_template" rows="2" maxlength="4000" required></textarea></label>
+    <div class="nf-toolbar"><h3 data-i18n="nf.sections">Output sections</h3><button type="button" class="button" id="nf-add-section" data-i18n="nf.add_section">Add section</button></div>
+    <div id="nf-sections"></div>
+    <p id="nf-error" role="alert"></p>
+    <div class="modal-actions"><button type="button" class="button secondary" data-nf-close data-i18n="common.cancel">Cancel</button><button type="submit" class="button primary" data-i18n="nf.save">Save format</button></div>
+  </form>
+</dialog>

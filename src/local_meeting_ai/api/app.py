@@ -353,6 +353,13 @@ def _register_web_routes(app: FastAPI, templates: Jinja2Templates, container: Co
             )
         return RedirectResponse(url=f"/?meeting={meeting.id}", status_code=307)
 
+    @app.get("/note-formats", include_in_schema=False)
+    async def note_formats_page(request: Request) -> object:
+        return templates.TemplateResponse(
+            request=request, name="note_formats.html",
+            context={"version": __version__, "page": "note-formats"},
+        )
+
     @app.get("/settings", include_in_schema=False)
     async def settings_page(request: Request) -> object:
         return templates.TemplateResponse(

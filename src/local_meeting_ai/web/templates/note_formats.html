@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Note formats · Meet2Notes{% endblock %}
+{% block content %}
+<header class="page-header"><div><h1 data-i18n="nf.title">Note formats</h1><p data-i18n="nf.intro">Create reusable instructions and sections for your AI meeting notes.</p></div></header>
+<section class="nf-page" data-user-id="{{ request.state.user.id if hosted else '' }}">
+  <div class="nf-toolbar"><p data-i18n="nf.privacy">Your formats are personal. Generated notes follow the meeting's viewing permissions.</p><button type="button" class="button primary" data-new-note-format data-i18n="nf.new">New format</button></div>
+  <p id="nf-load-status" role="status"></p>
+  <h2 data-i18n="nf.mine">My formats</h2><div id="nf-personal" class="nf-cards"></div>
+  <h2 data-i18n="nf.shared">Shared formats</h2><div id="nf-shared" class="nf-cards"></div>
+  {% if hosted and request.state.user.is_admin %}<h2 data-i18n="nf.others">Other users' formats</h2><div id="nf-others" class="nf-cards"></div>{% endif %}
+  {% if not hosted or request.state.user.is_admin %}<p><a href="/settings#note-formats" data-i18n="nf.manage_shared">Manage shared formats and the global default in Settings</a></p>{% endif %}
+</section>
+{% endblock %}

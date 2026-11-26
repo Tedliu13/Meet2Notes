@@ -41,6 +41,7 @@ def _summary_template_from_row(row: Any) -> SummaryTemplate:
         user_prompt_template=row["user_prompt_template"],
         sections=sections if isinstance(sections, list) else [],
         is_builtin=bool(row["is_builtin"]),
+        owner_id=row["owner_id"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -1546,8 +1547,8 @@ class SummaryTemplateRepository:
                 """
                 INSERT INTO summary_templates(
                     name, description, system_prompt, user_prompt_template,
-                    output_schema_json, is_builtin, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+                    output_schema_json, is_builtin, created_at, updated_at, owner_id
+                ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)
                 """,
                 (
                     values["name"],
@@ -1557,6 +1558,7 @@ class SummaryTemplateRepository:
                     json.dumps(values["sections"]),
                     now,
                     now,
+                    values.get("owner_id"),
                 ),
             )
             assert cursor.lastrowid is not None

@@ -169,8 +169,11 @@ def creator(
 
 @router.get("/workspace/preferences")
 def workspace_preferences(
+    request: Request,
     container: Annotated[Container, Depends(get_container)],
 ) -> dict[str, Any]:
+    from local_meeting_ai.api.note_formats import NoteFormats
+
     # Runtime labels/defaults for the work area, never credentials, paths or configuration.
     preferences = container.preferences.get_all()
     summary = preferences.get("summary_engine", {})
@@ -184,6 +187,7 @@ def workspace_preferences(
         )
         if key in preferences
     } | {
+        "default_summary_template_id": NoteFormats(container, request).default().id,
         "diarization": {
             "recognize_saved_speakers": preferences.get("diarization", {}).get(
                 "recognize_saved_speakers", True

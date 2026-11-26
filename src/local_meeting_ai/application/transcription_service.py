@@ -611,7 +611,7 @@ def _postprocess_options(options: dict[str, Any] | None) -> dict[str, Any]:
     source = options if isinstance(options, dict) else {}
     speaker_count = source.get("speaker_count")
     summary_template_id = source.get("summary_template_id")
-    return {
+    result = {
         "diarization": bool(source.get("diarization", True)),
         "speaker_count": speaker_count if isinstance(speaker_count, int) else None,
         "summary": bool(source.get("summary", True)),
@@ -621,6 +621,10 @@ def _postprocess_options(options: dict[str, Any] | None) -> dict[str, Any]:
             else None
         ),
     }
+    # Added by the authenticated API only; request schemas forbid arbitrary snapshots.
+    if isinstance(source.get("summary_template_snapshot"), dict):
+        result["summary_template_snapshot"] = source["summary_template_snapshot"]
+    return result
 
 
 def _sha256_file(path: Path) -> str:

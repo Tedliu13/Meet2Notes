@@ -347,6 +347,34 @@ grep -n -B 8 -A 20 -E 'failed:|Traceback|Cancelled transcribe|Completed transcri
 不必為清除顏色而中斷進行中的工作。修正只在管理者部署新 image 後生效；
 固定舊 image 的 `docker-compose.storage-local.yaml` 不會套用程式更新。
 
+### 個人筆記格式（migration 016）
+
+部署新版 image 前，等待工作結束並以 SQLite backup API 或停機一致性方式備份
+`/data/app.db`、會議檔案及獨立加密密鑰。啟動自動套用 016：既有格式保留原 ID、
+內容及共用身分，新增擁有者與個人預設資料表，不新增 secrets、模型或掛載。
+仍使用 `/docker-compose.storage-local.yaml` 時固定舊 image，不會取得此功能；
+須由管理者在網路可用時以 `/docker-compose.storage.yaml` 建置／部署新版。
+
+左側新增「筆記格式」，一般使用者可新增、複製、編輯刪除自己的個人格式，
+也可設為個人預設。管理者可管理所有格式，共用格式與全站預設仍在設定頁管理；
+全站預設不得指定個人格式。內建格式僅能複製。AI 筆記重建與最終處理視窗
+可快捷新增，儲存後自動選取本次使用；個人預設優先於全站預設，刪除後回退。
+只開放格式管理，不改動會議寫入權限。個人格式供擁有者與管理者查看；
+生成的筆記仍依共享會議庫權限供已登入使用者閱讀。
+
+送出摘要或整合轉錄流程時保存格式快照，格式後續編輯／刪除不影響該工作，
+亦不改動已生成的筆記。工作查詢與 SSE 不公開快照內的指令。舊工作沒有快照時
+仍沿用原流程。上線核對不同帳號看不到彼此格式、無法使用他人格式 ID、
+個人／全站預設互不覆蓋，以及舊筆記／桌面模式正常。
+
+不要直接用舊版 image 讀取升級後的資料庫，舊程式不具備個人格式隔離能力。
+如需回復，先保留最新資料及備份，使用隔離環境還原升級前的完整備份驗證，
+不可直接覆蓋含新會議或新帳號的正式資料。依既有政策每日保留 7–14 份及異地備份。
+
+本功能不修改 mounts：正式遷移後仍為三個 bind、皆 read_only=false：
+`/data/meet2notes/data -> /data`、`/data/meet2notes/models -> /models`、
+`/data/meet2notes/cache -> /cache`；無 host ports、Docker socket 或額外權限。
+
 ## 9. 本次驗證結果（2026-10-05）
 
 - API、migration、storage、paths 與加密 credential 這輪測試：85 passed、1 deselected。

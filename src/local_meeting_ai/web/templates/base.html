@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/static/css/ui-refresh.css?v={{ asset_version }}">
   <link rel="stylesheet" href="/static/css/assistant-markdown.css?v={{ asset_version }}">
   <link rel="stylesheet" href="/static/css/accounts.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/css/note-formats.css?v={{ asset_version }}">
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="/static/css/themes.css?v={{ asset_version }}">
 </head>
@@ -45,6 +46,10 @@
         <a href="/prompt" target="_blank" rel="noopener" class="{{ 'active' if page == 'prompt' else '' }}" title="Prompt" data-i18n-title="nav.prompt">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="M18 16v5M15.5 18.5h5"/></svg>
           <span data-i18n="nav.prompt">Prompt</span>
+        </a>
+        <a href="/note-formats" class="{{ 'active' if page == 'note-formats' else '' }}" title="Note formats" data-i18n-title="nf.title">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 7h8M8 11h8M8 15h5"/></svg>
+          <span data-i18n="nf.title">Note formats</span>
         </a>
       </nav>
 
@@ -153,11 +158,13 @@
   </dialog>
 
   <div class="toast-region" id="toast-region" aria-live="polite"></div>
+  {% include '_note_format_editor.html' %}
   <script src="/static/js/app.js?v={{ asset_version }}" defer></script>
   <script src="/static/js/known-speakers.js?v={{ asset_version }}" defer></script>
   <script src="/static/js/storage-usage.js?v={{ asset_version }}" defer></script>
   <script src="/static/js/markdown.js?v={{ asset_version }}" defer></script>
   <script src="/static/js/answer-stream.js?v={{ asset_version }}" defer></script>
+  <script src="/static/js/note-formats.js?v={{ asset_version }}" defer></script>
   {% block scripts %}{% endblock %}
   <script src="/static/js/accounts.js?v={{ asset_version }}" defer></script>
   <script src="/static/js/quick-actions.js?v={{ asset_version }}" defer></script>

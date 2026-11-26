@@ -224,6 +224,7 @@ class FinalProcessingPipeline:
                 transcription_id,
                 postprocess=True,
                 postprocess_options=options,
+                template_snapshot=options.get("summary_template_snapshot"),
                 template_id=(
                     options.get("summary_template_id")
                     if isinstance(options.get("summary_template_id"), int)

@@ -457,6 +457,7 @@
         <div>
           <label for="postprocess-summary" id="postprocess-summary-label"><strong>Create AI notes</strong><small>Generate structured notes with the selected format.</small></label>
           <label class="postprocess-format-field" for="postprocess-summary-template"><span>Note format</span><select id="postprocess-summary-template" aria-label="Note format"><option value="">Loading note formats…</option></select></label>
+          <button class="button secondary" type="button" data-new-note-format="postprocess-summary-template" data-i18n="nf.new">New format</button>
           <small class="postprocess-summary-sizing" id="postprocess-summary-sizing">Estimating transcript size…</small>
         </div>
       </div>
@@ -543,8 +544,9 @@
     <label class="engine-field" for="ai-rebuild-format">
       <span>Note format</span>
       <select id="ai-rebuild-format"><option value="">Loading note formats…</option></select>
-      <small>The default format from Settings is selected automatically.</small>
+      <small data-i18n="nf.default_help">Your default format is selected first, followed by the shared default.</small>
     </label>
+      <button class="button secondary" type="button" data-new-note-format="ai-rebuild-format" data-i18n="nf.new">New format</button>
     <div class="modal-actions">
       <button class="button secondary" id="ai-rebuild-cancel" type="button">Cancel</button>
       <button class="button primary" id="ai-rebuild-confirm" type="button">Rebuild AI notes</button>

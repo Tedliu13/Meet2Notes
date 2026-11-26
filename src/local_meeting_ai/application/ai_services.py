@@ -410,6 +410,7 @@ class SummaryService:
         postprocess: bool = False,
         postprocess_options: dict[str, Any] | None = None,
         template_id: int | None = None,
+        template_snapshot: dict[str, Any] | None = None,
     ) -> tuple[Summary, Job]:
         transcription = self.transcriptions.get(transcription_id)
         if not transcription:
@@ -431,16 +432,22 @@ class SummaryService:
                 raise CapabilityUnavailableError(
                     "Install the selected local AI model in Settings first"
                 )
-        template = self.templates.get(template_id) if template_id is not None else None
-        if template_id is not None and template is None:
-            raise ValidationError("The selected note format no longer exists")
-        template = template or self._default_template()
+        if template_snapshot is not None:
+            snapshot = dict(template_snapshot)
+            selected_id = snapshot.get("id")
+            template = self.templates.get(selected_id) if isinstance(selected_id, int) else None
+        else:
+            template = self.templates.get(template_id) if template_id is not None else None
+            if template_id is not None and template is None:
+                raise ValidationError("The selected note format no longer exists")
+            template = template or self._default_template()
+            snapshot = self._template_config(template)
         summary = self.summaries.create(
             meeting_id=transcription.meeting_id,
             transcription_id=transcription.id,
             provider=str(config["provider"]),
             model=str(config["model"]),
-            template_id=template.id,
+            template_id=template.id if template else None,
         )
         job = self.jobs.create(
             meeting_id=transcription.meeting_id,
@@ -450,7 +457,7 @@ class SummaryService:
                 "transcription_id": transcription.id,
                 "postprocess": postprocess,
                 "postprocess_options": postprocess_options or {},
-                "summary_template": self._template_config(template),
+                "summary_template": snapshot,
             },
             message="Waiting to generate the meeting summary",
         )

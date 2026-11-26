@@ -131,6 +131,14 @@ class HostedMiddleware:
         if method in {"GET", "HEAD", "OPTIONS"}:
             return
         if (
+            (path == "/api/summary-templates" and method == "POST")
+            or (re.fullmatch(r"/api/summary-templates/\d+", path) and method in {"PUT", "DELETE"})
+            or (re.fullmatch(r"/api/summary-templates/\d+/personal-default", path)
+                and method == "POST")
+        ):
+            # Object ownership is checked by the route, never supplied by the client.
+            return
+        if (
             method == "POST"
             and path
             in {

@@ -1225,6 +1225,29 @@ Sidebar engine status follows the current worker state. A cancelled transcriptio
 is a job cancellation, not an engine failure; a historical error does not override
 a worker that is ready or running. Genuine worker errors still appear in red.
 
+## Personal note formats
+
+Open **Note formats** in the sidebar to create, duplicate, edit or delete your own
+formats and choose a personal default. Shared formats remain available to all
+active users; administrators manage shared formats/global defaults in Settings
+and can manage all personal formats. Built-ins can be duplicated, but cannot be
+edited or deleted. Personal formats are visible to their owner and administrators;
+the resulting notes remain visible under the shared meeting-library rules.
+
+The AI notes rebuild and final-processing dialogs offer **New format** without
+leaving the meeting and select the saved format for that operation. A personal
+default takes precedence over the global default; deleting it restores that
+fallback. Creating a format does not grant permission to generate/edit notes on
+another user's meeting. Summary and transcription-pipeline jobs keep a snapshot
+of the chosen format, so edits/deletion do not change queued work or existing notes.
+Job API/SSE responses omit prompt snapshots.
+
+Migration 016 preserves existing formats as shared, adds ownership and personal
+defaults, and requires no new environment variables, models or volumes. Back up
+SQLite and meeting files before deploying. Do not downgrade a database with personal
+formats to an older image: older code does not enforce format ownership. Restore
+an isolated pre-upgrade backup for rollback, preserving any newer production data.
+
 ## License
 
 Meet2Notes is released under the [MIT License](LICENSE).

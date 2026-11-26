@@ -679,7 +679,9 @@ def test_imported_media_runs_complete_meeting_pipeline(tmp_path: Path) -> None:
             raise AssertionError("Imported media pipeline did not finish")
 
         assert summary_job["status"] == "completed"
-        assert summary_job["payload"]["summary_template"]["name"] == "Daily Stand-up"
+        assert "summary_template" not in summary_job["payload"]
+        saved_job = client.app.state.container.jobs.get(summary_job["uuid"])
+        assert saved_job.payload["summary_template"]["name"] == "Daily Stand-up"
         assert {job["job_type"] for job in workflow_jobs} >= {
             "import_media",
             "transcribe",

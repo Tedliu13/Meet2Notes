@@ -1368,6 +1368,21 @@
     if (action) action();
   }
 
+  document.addEventListener("meet2notes:noteformatcreated", async (event) => {
+    try {
+      noteFormats = await api("/api/summary-templates");
+      populatePostprocessNoteFormats();
+      const select = document.getElementById(event.detail.selectId);
+      if (select) {
+        select.innerHTML = noteFormats.map((format) =>
+          `<option value="${format.id}">${escapeHTML(format.name)}</option>`).join("");
+        select.value = String(event.detail.id);
+        select.dispatchEvent(new Event("change"));
+      }
+      document.querySelector("#ai-rebuild-confirm").disabled = !noteFormats.length;
+    } catch (error) { toast(error.message, "error"); }
+  });
+
   function openAiRebuildDialog() {
     if (!activeTranscriptionId || lastDetail?.transcription?.status !== "completed") {
       toast("Complete the transcription before rebuilding AI notes.", "error");

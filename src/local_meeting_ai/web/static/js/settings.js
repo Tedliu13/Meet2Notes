@@ -1000,7 +1000,7 @@
   }
 
   async function refreshNoteFormats() {
-    renderNoteFormats(await api("/api/summary-templates"));
+    renderNoteFormats(await api("/api/summary-templates?scope=shared"));
   }
 
   function populateDiarizationSettings(preferences) {
@@ -1597,7 +1597,7 @@
         api("/api/capabilities"),
         api("/api/models/summary"),
         api("/api/settings/summary-api-key"),
-        api("/api/summary-templates"),
+        api("/api/summary-templates?scope=shared"),
         api("/api/plugins"),
         api("/api/models/embeddings"),
         api("/api/webhooks"),
@@ -2665,6 +2665,7 @@
         item_format: row.querySelector('[data-note-section="item_format"]').value.trim() || null,
       }));
       const payload = {
+        scope: "shared",
         name: $("#note-format-name").value.trim(),
         description: $("#note-format-description").value.trim() || null,
         system_prompt: $("#note-format-system-prompt").value.trim(),

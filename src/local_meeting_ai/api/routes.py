@@ -21,6 +21,7 @@ from fastapi import (
     Depends,
     File,
     Form,
+    HTTPException,
     Query,
     Request,
     Response,
@@ -36,6 +37,7 @@ from local_meeting_ai.adapters.summary.credentials import (
     set_litellm_api_key,
 )
 from local_meeting_ai.api.dependencies import get_container
+from local_meeting_ai.api.note_formats import NoteFormats
 from local_meeting_ai.api.schemas import (
     ActiveTranscriptPageResponse,
     AudioCaptureSourceResponse,
@@ -1290,8 +1292,7 @@ async def unload_embedding_engine(
 
 
 def _summary_template_response(
-    template: Any,
-    default_id: int,
+    template: Any, default_id: int, access: NoteFormats
 ) -> SummaryTemplateResponse:
     return SummaryTemplateResponse(
         id=template.id,
@@ -1304,16 +1305,25 @@ def _summary_template_response(
         is_default=template.id == default_id,
         created_at=template.created_at,
         updated_at=template.updated_at,
+        owner_id=template.owner_id,
+        owner_name=access.owner_names.get(template.owner_id),
+        scope="shared" if template.owner_id is None else "personal",
+        can_edit=access.editable(template),
     )
 
 
 @router.get("/summary-templates", response_model=list[SummaryTemplateResponse])
-def list_summary_templates(container: ContainerDependency) -> list[SummaryTemplateResponse]:
-    configured = container.preferences.get_all().get("default_summary_template_id")
-    default = container.summary_templates.default(configured)
+def list_summary_templates(
+    container: ContainerDependency,
+    request: Request,
+    scope: str | None = None,
+) -> list[SummaryTemplateResponse]:
+    access = NoteFormats(container, request)
+    default = access.default(shared=scope == "shared")
     return [
-        _summary_template_response(template, default.id)
-        for template in container.summary_templates.list()
+        _summary_template_response(item, default.id, access)
+        for item in container.summary_templates.list()
+        if access.visible(item) and (scope != "shared" or item.owner_id is None)
     ]
 
 
@@ -1325,12 +1335,15 @@ def list_summary_templates(container: ContainerDependency) -> list[SummaryTempla
 def create_summary_template(
     payload: SummaryTemplateWrite,
     container: ContainerDependency,
+    request: Request,
 ) -> SummaryTemplateResponse:
-    template = container.summary_templates.create(payload.model_dump())
-    default = container.summary_templates.default(
-        container.preferences.get_all().get("default_summary_template_id")
-    )
-    return _summary_template_response(template, default.id)
+    access = NoteFormats(container, request)
+    if payload.scope == "shared" and not access.admin:
+        raise HTTPException(403, "Only administrators can create shared note formats")
+    values = payload.model_dump(exclude={"scope"})
+    values["owner_id"] = access.user_id if payload.scope == "personal" else None
+    template = container.summary_templates.create(values)
+    return _summary_template_response(template, access.default().id, access)
 
 
 @router.put("/summary-templates/{template_id}", response_model=SummaryTemplateResponse)
@@ -1338,48 +1351,61 @@ def update_summary_template(
     template_id: int,
     payload: SummaryTemplateWrite,
     container: ContainerDependency,
+    request: Request,
 ) -> SummaryTemplateResponse:
-    try:
-        template = container.summary_templates.update(template_id, payload.model_dump())
-    except ValueError as error:
-        raise ValidationError(str(error)) from error
-    if not template:
-        raise NotFoundError("Note format not found")
-    default = container.summary_templates.default(
-        container.preferences.get_all().get("default_summary_template_id")
+    access = NoteFormats(container, request)
+    access.require_edit(access.get(template_id))
+    template = container.summary_templates.update(
+        template_id, payload.model_dump(exclude={"scope"})
     )
-    return _summary_template_response(template, default.id)
+    assert template is not None
+    return _summary_template_response(template, access.default().id, access)
 
 
 @router.post(
-    "/summary-templates/{template_id}/default",
-    response_model=list[SummaryTemplateResponse],
+    "/summary-templates/{template_id}/default", response_model=list[SummaryTemplateResponse]
 )
 def select_default_summary_template(
     template_id: int,
     container: ContainerDependency,
+    request: Request,
 ) -> list[SummaryTemplateResponse]:
-    if not container.summary_templates.get(template_id):
-        raise NotFoundError("Note format not found")
+    access = NoteFormats(container, request)
+    template = access.get(template_id)
+    if not access.admin or template.owner_id is not None:
+        raise HTTPException(403, "Only shared formats can be selected as the global default")
     container.preferences.update({"default_summary_template_id": template_id})
-    return list_summary_templates(container)
+    return list_summary_templates(container, request, scope="shared")
+
+
+@router.post(
+    "/summary-templates/{template_id}/personal-default",
+    response_model=list[SummaryTemplateResponse],
+)
+def select_personal_summary_template(
+    template_id: int,
+    container: ContainerDependency,
+    request: Request,
+) -> list[SummaryTemplateResponse]:
+    access = NoteFormats(container, request)
+    access.set_personal_default(access.get(template_id))
+    return list_summary_templates(container, request)
 
 
 @router.delete("/summary-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_summary_template(template_id: int, container: ContainerDependency) -> Response:
-    template = container.summary_templates.get(template_id)
-    if not template:
-        raise NotFoundError("Note format not found")
-    try:
-        container.summary_templates.delete(template_id)
-    except ValueError as error:
-        raise ValidationError(str(error)) from error
-    configured = container.preferences.get_all().get("default_summary_template_id")
-    if configured == template_id:
-        fallback = container.summary_templates.default(None)
-        container.preferences.update({"default_summary_template_id": fallback.id})
+def delete_summary_template(
+    template_id: int,
+    container: ContainerDependency,
+    request: Request,
+) -> Response:
+    access = NoteFormats(container, request)
+    access.require_edit(access.get(template_id))
+    container.summary_templates.delete(template_id)
+    if container.preferences.get_all().get("default_summary_template_id") == template_id:
+        container.preferences.update(
+            {"default_summary_template_id": container.summary_templates.default().id}
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
 
 @router.post("/engines/summary/uninstall")
 async def uninstall_summary_model(
@@ -1442,11 +1468,14 @@ async def start_diarization(
 async def start_summary(
     transcription_id: int,
     container: ContainerDependency,
+    request: Request,
     payload: SummaryStartRequest | None = None,
 ) -> SummaryStartResponse:
     summary, job = await container.summary_service.start(
         transcription_id,
-        template_id=payload.template_id if payload else None,
+        template_snapshot=NoteFormats(container, request).snapshot(
+            payload.template_id if payload else None,
+        ),
     )
     return SummaryStartResponse(
         summary=SummaryResponse.model_validate(summary),
@@ -1559,6 +1588,7 @@ def resume_capture(
 async def stop_capture(
     session_id: str,
     container: ContainerDependency,
+    request: Request,
     payload: LiveCaptureStop | None = None,
 ) -> LiveCaptureStopResponse:
     (
@@ -1569,7 +1599,7 @@ async def stop_capture(
         transcription_job,
     ) = await container.capture_service.stop(
         session_id,
-        **(payload.model_dump() if payload else {}),
+        **NoteFormats(container, request).freeze_options(payload.model_dump() if payload else {}),
     )
     return LiveCaptureStopResponse(
         session=LiveCaptureSessionResponse.model_validate(session),
@@ -1635,10 +1665,12 @@ async def update_settings(
     container: ContainerDependency,
 ) -> PreferenceResponse:
     values = payload.model_dump(exclude_unset=True)
-    if values.get(
-        "default_summary_template_id"
-    ) is not None and not container.summary_templates.get(values["default_summary_template_id"]):
-        raise ValidationError("Note format not found")
+    if values.get("default_summary_template_id") is not None:
+        selected_note_format = container.summary_templates.get(
+            values["default_summary_template_id"],
+        )
+        if selected_note_format is None or selected_note_format.owner_id is not None:
+            raise ValidationError("Shared note format not found")
     if "models_directory" in values:
         values["models_directory"] = _validate_models_directory(values["models_directory"])
     _validate_provider_preferences(container, values)
@@ -2168,10 +2200,11 @@ async def start_transcription(
     meeting_id: int,
     payload: TranscriptionCreate,
     container: ContainerDependency,
+    request: Request,
 ) -> TranscriptionStartResponse:
     transcription, job = await container.transcription_service.start(
         meeting_id,
-        **payload.model_dump(),
+        **NoteFormats(container, request).freeze_options(payload.model_dump()),
     )
     return TranscriptionStartResponse(
         transcription=TranscriptionResponse.model_validate(transcription),
