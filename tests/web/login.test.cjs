@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const source = fs.readFileSync('src/local_meeting_ai/web/static/js/login.js', 'utf8');
 
 function page(fetch) {
-  const nodes = Object.fromEntries(['account-form', 'account-submit', 'account-error', 'account-password', 'account-name', 'account-username', 'choose-login', 'choose-register', 'name-field', 'register-help'].map(id => [id, {
+  const nodes = Object.fromEntries(['account-form', 'account-submit', 'account-error', 'account-status', 'account-password', 'account-name', 'account-username', 'choose-login', 'choose-register', 'name-field', 'register-help'].map(id => [id, {
     value: '', disabled: false, attributes: {}, setAttribute(key, value) { this.attributes[key] = value; }, addEventListener(type, callback) { this[type] = callback; },
   }]));
   const destinations = [];
@@ -16,7 +16,7 @@ function page(fetch) {
   return { nodes, destinations, submit: () => nodes['account-form'].submit({ preventDefault() {} }) };
 }
 
-test('registration sends name, username and password then opens the meeting list', async () => {
+test('registration shows activation instructions without entering the meeting list', async () => {
   const calls = [];
   const { nodes, submit, destinations } = page(async (path, options) => { calls.push([path, options]); return { ok: true, json: async () => ({ id: 2 }) }; });
   nodes['choose-register'].click();
@@ -31,7 +31,9 @@ test('registration sends name, username and password then opens the meeting list
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], '/api/auth/register');
   assert.deepEqual(JSON.parse(calls[0][1].body), { username: 'alice', name: 'Alice', password: 'a-test-password-123' });
-  assert.deepEqual(destinations, ['/meetings']);
+  assert.deepEqual(destinations, []);
+  assert.match(nodes['account-status'].textContent, /請通知管理者來啟動您的帳號/);
+  assert.equal(nodes['choose-login'].attributes['aria-pressed'], 'true');
   assert.equal(nodes['account-password'].value, '');
 });
 

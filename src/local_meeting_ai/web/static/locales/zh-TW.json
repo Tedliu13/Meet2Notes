@@ -177,6 +177,7 @@
   "mcp.status_enabled": "已啟用 · 應用程式運作時，桌面用戶端可使用唯讀 Meet2Notes 工具。",
   "mcp.title": "MCP 桌面用戶端",
   "literal": {
+    "帳號：3–80 字元英數、_、.、@ 或 -。密碼至少 12 字元。註冊後須由管理者啟用，才能登入。": "帳號：3–80 字元英數、_、.、@ 或 -。密碼至少 12 字元。註冊後須由管理者啟用，才能登入。",
     "Create reusable instructions and sections for your AI meeting notes.": "建立可重複使用的 AI 會議筆記指令與章節。",
     "Your formats are personal. Generated notes follow the meeting's viewing permissions.": "個人格式僅供自己及管理者管理；產生的筆記依會議權限供其他使用者觀看。",
     "New format": "新增格式",

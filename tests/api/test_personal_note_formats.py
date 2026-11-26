@@ -59,6 +59,12 @@ def register(client, name):
         },
     )
     assert result.status_code == 201, result.text
+    pending = result.json()
+    assert not pending["active"]
+    login(client)
+    assert client.patch(f"/api/users/{pending['id']}", json={"active": True}).status_code == 200
+    assert client.post("/api/auth/logout").status_code == 204
+    login(client, name)
 
 
 def test_personal_formats_are_isolated_and_do_not_unlock_settings_or_other_meetings(hosted):

@@ -19,7 +19,8 @@
       <label class="field" id="name-field" hidden>姓名<input id="account-name" name="name" maxlength="100" autocomplete="name"></label>
       <label class="field">帳號<input id="account-username" name="username" maxlength="80" autocomplete="username" required></label>
       <label class="field">密碼<input id="account-password" name="password" type="password" maxlength="256" autocomplete="current-password" required></label>
-      <p id="register-help" hidden>帳號：3–80 字元英數、_、.、@ 或 -。密碼至少 12 字元。註冊完成立即登入。</p>
+      <p id="register-help" hidden>帳號：3–80 字元英數、_、.、@ 或 -。密碼至少 12 字元。註冊後須由管理者啟用，才能登入。</p>
+      <p id="account-status" role="status" aria-live="polite"></p>
       <p id="account-error" role="alert"></p>
       <button class="button primary" id="account-submit" type="submit">登入</button>
     </form>

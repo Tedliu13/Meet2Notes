@@ -76,7 +76,7 @@ class Accounts:
         try:
             with self.database.transaction() as conn:
                 cursor = conn.execute(
-                    "INSERT INTO users(username,name,password_hash) VALUES(?,?,?)",
+                    "INSERT INTO users(username,name,password_hash,active) VALUES(?,?,?,0)",
                     (username, name, hashed),
                 )
                 row = conn.execute("SELECT * FROM users WHERE id=?", (cursor.lastrowid,)).fetchone()

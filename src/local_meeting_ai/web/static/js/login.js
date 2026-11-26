@@ -4,6 +4,7 @@
   const form = document.querySelector("#account-form");
   const submit = document.querySelector("#account-submit");
   const error = document.querySelector("#account-error");
+  const status = document.querySelector("#account-status");
   const password = document.querySelector("#account-password");
   const name = document.querySelector("#account-name");
   function mode(register) {
@@ -15,8 +16,9 @@
     password.autocomplete = register ? "new-password" : "current-password";
     document.querySelector("#choose-login").setAttribute("aria-pressed", String(!register));
     document.querySelector("#choose-register").setAttribute("aria-pressed", String(register));
-    submit.textContent = register ? "註冊並登入" : "登入";
+    submit.textContent = register ? "註冊帳號" : "登入";
     error.textContent = "";
+    status.textContent = "";
   }
   document.querySelector("#choose-login").addEventListener("click", () => mode(false));
   document.querySelector("#choose-register").addEventListener("click", () => mode(true));
@@ -26,6 +28,7 @@
     submit.disabled = true;
     document.querySelectorAll(".account-tabs button").forEach((button) => { button.disabled = true; });
     error.textContent = "";
+    status.textContent = "";
     try {
       const payload = { username: document.querySelector("#account-username").value.trim(), password: password.value };
       if (registering) payload.name = name.value.trim();
@@ -35,6 +38,11 @@
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "請檢查帳號、姓名與密碼格式");
       password.value = "";
+      if (registering) {
+        mode(false);
+        status.textContent = data.message || "註冊成功，請通知管理者來啟動您的帳號。";
+        return;
+      }
       location.assign("/meetings");
     } catch (failure) {
       error.textContent = failure.message || "暫時無法登入，請重試";

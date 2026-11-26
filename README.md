@@ -38,7 +38,11 @@ downloaded after deployment into a separate persistent volume. Hosted mode uses
 four job workers, disables native recording/live transcription and the live
 assistant, and retains imported-media processing and post-meeting features.
 Hosted mode now supports self-registration and individual sign-in at `/login`.
-Registration asks for a name, username and password and signs in immediately.
+Registration asks for a name, username and password and creates an inactive account.
+The sign-in page asks the user to notify an administrator to activate it. An
+administrator enables the account in Settings → User management before password
+or Basic API sign-in is allowed. Existing account activation states and the
+initial administrator remain unchanged; no new migration or variable is needed.
 The existing `M2N_AUTH_USERNAME`/`M2N_AUTH_PASSWORD` bootstrap the first administrator
 only when the users table is empty; rebuilds never reset database account passwords.
 Existing meetings are assigned to that initial administrator during the first upgrade.
@@ -1194,7 +1198,8 @@ headings, body text, lists and tables. The font must be available on the compute
 opening the file; otherwise Word substitutes an installed font. This remains the
 existing Word-compatible `.doc` export and needs no server font installation.
 
-Hosted sign-in and registration open the meeting library (`/meetings`). Opening
+Hosted sign-in opens the meeting library (`/meetings`). Registration stays on the
+sign-in page with activation instructions and does not issue a session. Opening
 the site's root also redirects there instead of selecting the latest meeting.
 Direct meeting links (`/?meeting=ID`) and the new-meeting flow (`/?new=1`) remain
 available; desktop mode keeps its existing startup behavior.

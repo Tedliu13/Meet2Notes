@@ -19,7 +19,7 @@ Hosted 登入／註冊成功後進入 `/meetings` 會議清單；直接開啟網
 2. Build Pack 選 **Docker Compose**，Base Directory `/`，Compose Location `/docker-compose.yaml`。
 3. 載入 Compose 後，meet2notes service 的 Domain 設為 `https://meet2notes.ncdrcc.com:8765`；`:8765` 指容器內部路由 port，使用者仍開啟不帶 port 的正式 HTTPS 網址。
 4. 填入下表三個必要 secrets（runtime variables），確認 storage、資源限制及 health check 後由管理者部署。
-5. 瀏覽器顯示 `/login` 登入／註冊頁。註冊填姓名、帳號、密碼後立即啟用並登入。頁面與業務 API 需登入；登入頁、靜態資源、登入／註冊 API、`/api/health` 及 `/api/health/live` 公開。
+5. 瀏覽器顯示 `/login` 登入／註冊頁。註冊填姓名、帳號、密碼後建立未啟用帳號，不簽發 session，並顯示「註冊成功，請通知管理者來啟動您的帳號。」管理者到設定 → 使用者管理，按該帳號的「啟用」後才可登入或使用 Basic API 認證。頁面與業務 API 需登入；登入頁、靜態資源、登入／註冊 API、`/api/health` 及 `/api/health/live` 公開。此變更沿用 active 欄位，無新 migration／環境變數，不更動既有帳號狀態、初始管理者、掛載或模型；不會自動寄送通知。備份與還原方式不變，部署新版後以新帳號驗證未啟用拒絕登入、管理者啟用後可登入。
 
 這是多人帳號、單一共享會議庫。所有啟用且登入的使用者可觀看全部會議、播放、匯出、使用 Prompt 與 RAG 問答；會議不提供私人隔離。只有管理者、建立者及共同管理者可修改會議、逐字稿、講者、AI 筆記、匯入／重跑轉錄及取消該會議背景工作。只有管理者與建立者可指定共同管理者。設定、使用者管理、API keys、模型管理、全域模板、外掛、Webhook 及全域索引重建僅管理者可操作。一般使用者仍可選擇自己新會議的處理選項。
 

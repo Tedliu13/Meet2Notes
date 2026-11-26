@@ -12,7 +12,7 @@
     users.innerHTML = list.map((user) => `<form class="user-row" data-user="${user.id}">
       <label class="field">${escapeHTML(user.username)}${user.is_admin ? " · 管理者" : ""}<input name="name" value="${escapeHTML(user.name)}" maxlength="100" required aria-label="姓名"></label>
       <label class="field">重設密碼<input name="password" type="password" minlength="12" maxlength="256" autocomplete="new-password" placeholder="留空保留原密碼"></label>
-      <span>${user.active ? "啟用中" : "已停用"}</span><button class="button secondary" type="submit">儲存</button>
+      <span>${user.active ? "啟用中" : "未啟用／已停用"}</span><button class="button secondary" type="submit">儲存</button>
       ${user.is_admin ? "" : `<button class="button secondary" type="button" data-activation="${user.active ? "false" : "true"}">${user.active ? "停用" : "啟用"}</button><button class="button danger" type="button" data-delete-user>刪除</button>`}
       </form>`).join("");
   }

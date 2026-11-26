@@ -84,8 +84,11 @@ def register(
     old_token = request.cookies.get("__Host-m2n_session")
     if old_token:
         store.logout(old_token)
-    set_session(response, store, user)
-    return user
+    response.delete_cookie(
+        "__Host-m2n_session", path="/", secure=True, httponly=True, samesite="strict"
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return {**user, "message": "註冊成功，請通知管理者來啟動您的帳號。"}  # noqa: RUF001
 
 
 @router.post("/auth/login")
@@ -97,7 +100,7 @@ def login(
     store.throttle("login:" + payload.username.casefold(), 15)
     user = store.authenticate(payload.username, payload.password)
     if not user:
-        raise HTTPException(401, "帳號或密碼錯誤 / 或帳號已停用")
+        raise HTTPException(401, "帳號或密碼錯誤 / 帳號尚未啟用或已停用")
     old_token = request.cookies.get("__Host-m2n_session")
     if old_token:
         store.logout(old_token)

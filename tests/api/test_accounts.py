@@ -43,7 +43,12 @@ def register(client, username="alice", name="Alice"):
         },
     )
     assert response.status_code == 201, response.text
-    return response.json()
+    pending = response.json()
+    assert not pending["active"]
+    login(client)
+    assert client.patch(f"/api/users/{pending['id']}", json={"active": True}).status_code == 200
+    assert client.post("/api/auth/logout").status_code == 204
+    return login(client, username)
 
 
 def login(client, username="owner", password=PASSWORD):
@@ -137,6 +142,47 @@ def test_registration_session_logout_and_password_storage(account_client):
     response = client.post("/api/auth/login", json={"username": "alice", "password": PASSWORD})
     cookie = response.headers["set-cookie"]
     assert all(value in cookie for value in ("HttpOnly", "Secure", "SameSite=strict", "Path=/"))
+
+
+def test_registration_requires_administrator_activation_before_any_login(account_client):
+    client = account_client
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "name": "Pending Alice",
+            "username": "alice",
+            "password": PASSWORD,
+        },
+    )
+    assert response.status_code == 201
+    pending = response.json()
+    assert not pending["active"] and not pending["is_admin"]
+    assert "請通知管理者來啟動您的帳號" in pending["message"]
+    assert client.cookies.get("__Host-m2n_session") is None
+    with client.app.state.container.database.read() as conn:
+        assert conn.execute("SELECT count(*) FROM user_sessions").fetchone()[0] == 0
+        assert conn.execute("SELECT active FROM users WHERE username='owner'").fetchone()[0] == 1
+    assert client.get("/api/auth/me").status_code == 401
+    assert client.get("/api/meetings", auth=("alice", PASSWORD)).status_code == 401
+    assert (
+        client.post(
+            "/api/auth/login",
+            json={
+                "username": "alice",
+                "password": PASSWORD,
+            },
+        ).status_code
+        == 401
+    )
+    assert client.patch(f"/api/users/{pending['id']}", json={"active": True}).status_code == 401
+    login(client)
+    assert any(
+        user["id"] == pending["id"] and not user["active"]
+        for user in client.get("/api/users").json()
+    )
+    assert client.patch(f"/api/users/{pending['id']}", json={"active": True}).status_code == 200
+    assert client.post("/api/auth/logout").status_code == 204
+    assert login(client, "alice")["id"] == pending["id"]
 
 
 def test_meeting_owner_managers_and_resource_alias_permissions(account_client):

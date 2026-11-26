@@ -177,6 +177,7 @@
   "mcp.status_enabled": "Activado · los clientes de escritorio pueden usar las herramientas de solo lectura de Meet2Notes mientras la aplicación esté ejecutándose.",
   "mcp.title": "Clientes MCP de escritorio",
   "literal": {
+    "帳號：3–80 字元英數、_、.、@ 或 -。密碼至少 12 字元。註冊後須由管理者啟用，才能登入。": "Cuenta: 3–80 letras, números, _, ., @ o -. Contraseña: al menos 12 caracteres. Un administrador debe activar la cuenta antes de iniciar sesión.",
     "Create reusable instructions and sections for your AI meeting notes.": "Crea instrucciones y secciones reutilizables para tus notas de reuniones con IA.",
     "Your formats are personal. Generated notes follow the meeting's viewing permissions.": "Tus formatos son personales. Las notas generadas siguen los permisos de la reunión.",
     "New format": "Nuevo formato",
