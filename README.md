@@ -1221,6 +1221,10 @@ If Docker Hub is unreachable during cutover, the runbook also describes
 `pull_policy: never`. This temporary mode runs the old application commit;
 repository code updates require returning to the normal storage Compose build.
 
+Sidebar engine status follows the current worker state. A cancelled transcription
+is a job cancellation, not an engine failure; a historical error does not override
+a worker that is ready or running. Genuine worker errors still appear in red.
+
 ## License
 
 Meet2Notes is released under the [MIT License](LICENSE).

@@ -915,7 +915,9 @@ def _sidebar_engine_entry(
     worker_state = str(worker.get("state") or "idle")
     active_requests = int(worker.get("active_requests") or 0)
     in_memory = bool(worker.get("model_resident") or details.get("loaded_models"))
-    if worker_state == "error" or worker.get("last_error"):
+    # last_error can describe an older request, including a cancelled job.
+    # An explicit current worker state takes precedence over that history.
+    if worker_state == "error" or (not worker.get("state") and worker.get("last_error")):
         status_value = "error"
     elif active_requests or worker_state in {"loading", "inferencing", "running"}:
         status_value = "running"

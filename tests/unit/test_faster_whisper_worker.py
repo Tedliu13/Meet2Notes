@@ -100,3 +100,42 @@ def test_cancelled_waiter_does_not_start_inference_or_release_another_requests_s
         pytest.fail("Cancelled request entered inference")
     assert slot.acquire(blocking=False)
     slot.release()
+
+
+def test_cancelled_overlapping_request_does_not_poison_successful_worker(tmp_path):
+    engine = FasterWhisperEngine(tmp_path)
+    try:
+        engine._request_started("inferencing")
+        engine._request_started("inferencing")
+        engine._request_finished(JobCancelledError("Transcription was cancelled"))
+        worker = engine.capability()["worker"]
+        assert worker["active_requests"] == 1
+        assert worker["state"] == "inferencing"
+        assert worker["last_error"] is None
+        engine._request_finished()
+        worker = engine.capability()["worker"]
+        assert worker["active_requests"] == 0
+        assert worker["state"] == "idle"
+        assert worker["last_error"] is None
+    finally:
+        engine.shutdown()
+
+
+def test_real_worker_failure_is_reported_until_successful_recovery(tmp_path):
+    engine = FasterWhisperEngine(tmp_path)
+    try:
+        engine._request_started("inferencing")
+        engine._request_started("inferencing")
+        engine._request_finished(RuntimeError("Model inference failed"))
+        assert engine.capability()["worker"]["last_error"] == "Model inference failed"
+        engine._request_finished()
+        worker = engine.capability()["worker"]
+        assert worker["state"] == "idle"
+        assert worker["last_error"] is None
+        engine._request_started("inferencing")
+        engine._request_finished(RuntimeError("Model inference failed"))
+        worker = engine.capability()["worker"]
+        assert worker["state"] == "error"
+        assert worker["last_error"] == "Model inference failed"
+    finally:
+        engine.shutdown()

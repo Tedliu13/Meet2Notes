@@ -17,6 +17,29 @@ def test_liveness_does_not_read_sqlite_or_inspect_models(client, monkeypatch):
     assert set(response.json()) == {"status", "version"}
 
 
+def test_sidebar_uses_current_worker_state_instead_of_historical_error(client, monkeypatch):
+    capability = {
+        "available": True,
+        "installed_models": ["large-v3"],
+        "loaded_models": ["large-v3"],
+        "worker": {
+            "state": "ready", "active_requests": 0, "model_resident": True,
+            "last_error": "Transcription was cancelled",
+        },
+    }
+    monkeypatch.setattr(
+        client.app.state.container.transcription_service, "capability", lambda: capability,
+    )
+    for state, active, expected in [("ready", 0, "ready"), ("inferencing", 1, "running"),
+                                    ("error", 0, "error")]:
+        capability["worker"].update(state=state, active_requests=active)
+        response = client.get("/api/sidebar-system")
+        assert response.status_code == 200
+        transcription = response.json()["engines"][:2]
+        assert all(item["status"] == expected for item in transcription)
+        assert all(item["last_error"] == "Transcription was cancelled" for item in transcription)
+
+
 def test_liveness_rejects_shutdown_and_not_ready_state(client):
     client.app.state.services_ready = False
     assert client.get("/api/health/live").status_code == 503

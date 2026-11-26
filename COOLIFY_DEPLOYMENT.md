@@ -328,6 +328,25 @@ Faster Whisper 轉錄開始前分別顯示模型載入、等待推論位置、�
 這是暫時恢復方式，推送程式碼不會更新 image 內的應用；網路恢復後須切回
 `docker-compose.storage.yaml` 並建置部署。Coolify helper 與 Git 存取仍可能需要網路。
 
+### 側邊欄 Faster Whisper 顯示錯誤時
+
+診斷報告若顯示 `worker.state=ready`、`active_requests=0`、模型已載入，
+但 `last_error=Transcription was cancelled`，表示保留了取消工作的歷史訊息，
+不能直接判定引擎無法使用。修正後取消不列為引擎失敗，成功完成的請求會清除
+殘留錯誤；側邊欄採當前 worker 狀態，真正的 `state=error` 仍顯示紅色。
+不需要重裝模型或修改 CUDA、磁碟掛載、密鑰或環境變數。
+
+在應用容器 Terminal 可查閱實際失敗與取消的前後文：
+
+```sh
+grep -n -B 8 -A 20 -E 'failed:|Traceback|Cancelled transcribe|Completed transcribe' /data/logs/meet2notes.log | tail -n 160
+```
+
+報告中的 CUDA 缺少 `libcuda.so.1` 在此無 GPU VM 屬預期，不需安裝 CUDA；
+也須核對 native-fault 的事件日期，避免將舊 SIGILL 當作本次故障。
+不必為清除顏色而中斷進行中的工作。修正只在管理者部署新 image 後生效；
+固定舊 image 的 `docker-compose.storage-local.yaml` 不會套用程式更新。
+
 ## 9. 本次驗證結果（2026-10-05）
 
 - API、migration、storage、paths 與加密 credential 這輪測試：85 passed、1 deselected。

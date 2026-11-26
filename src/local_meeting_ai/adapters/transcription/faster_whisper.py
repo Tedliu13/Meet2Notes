@@ -471,9 +471,15 @@ class FasterWhisperEngine:
     def _request_finished(self, failure: Exception | None = None) -> None:
         with self._state_lock:
             self._active_requests = max(0, self._active_requests - 1)
+            # Cancellation belongs to the job, not the engine's health. Another
+            # request may already be using the same resident model successfully.
+            if isinstance(failure, JobCancelledError):
+                failure = None
             if failure is not None:
                 self._last_error = str(failure)
             if self._active_requests == 0:
+                if failure is None:
+                    self._last_error = None
                 self._state = (
                     "error"
                     if failure is not None
